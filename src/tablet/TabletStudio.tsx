@@ -424,11 +424,14 @@ export function TabletStudio({
             className="icon-button"
             aria-label="تمام صفحه"
             onClick={() => {
-              document.documentElement
-                .requestFullscreen?.()
-                .catch(() =>
-                  setFeedback("برای فضای بیشتر، تبلت را افقی بگذار."),
-                );
+              if (document.fullscreenElement) {
+                void document.exitFullscreen().catch(() => {});
+              } else if (document.documentElement.requestFullscreen) {
+                void document.documentElement.requestFullscreen().catch(() =>
+                  setFeedback("برای فضای بیشتر، تبلت را افقی بگذار."));
+              } else {
+                setFeedback("این مرورگر تمام‌صفحه ندارد؛ تبلت را افقی بگذار یا سایت را به صفحهٔ اصلی اضافه کن.");
+              }
             }}
           >
             <Maximize />

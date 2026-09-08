@@ -1,0 +1,5 @@
+import {frequency} from './pitch';
+let context:AudioContext|undefined;
+export async function audioContext(){context??=new AudioContext();if(context.state==='suspended')await context.resume();return context;}
+export async function playNote(midi:number,duration=.5,volume=.2){const ctx=await audioContext();const gain=ctx.createGain();gain.connect(ctx.destination);const t=ctx.currentTime;gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(volume,t+.008);gain.gain.exponentialRampToValueAtTime(.001,t+Math.max(.08,duration));[1,2,3].forEach((h,i)=>{const osc=ctx.createOscillator(),g=ctx.createGain();osc.type='sine';osc.frequency.value=frequency(midi)*h;g.gain.value=[1,.25,.08][i];osc.connect(g);g.connect(gain);osc.start(t);osc.stop(t+duration+.05);});}
+export async function tick(accent=false){const ctx=await audioContext(),o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=accent?1100:800;g.gain.setValueAtTime(.09,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.06);o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.065);}

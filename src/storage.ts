@@ -1,0 +1,3 @@
+export type Attempt={id:string;at:string;accuracy:number;correct:number;wrong:number;seconds:number;source:string;partial:boolean;mode:string;rhythm:number|null};
+export function readAttempts():Attempt[]{try{const v=JSON.parse(localStorage.getItem('mahour-attempts')||'[]');return Array.isArray(v)?v.filter(x=>typeof x.id==='string'&&typeof x.accuracy==='number'&&typeof x.seconds==='number'&&typeof x.at==='string').slice(-1000):[]}catch{return []}}
+export function saveAttempts(attempts:Attempt[]){try{localStorage.setItem('mahour-attempts',JSON.stringify(attempts.slice(-1000)));return true}catch{return false}}

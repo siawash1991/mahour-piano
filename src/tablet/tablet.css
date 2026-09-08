@@ -1,0 +1,686 @@
+.fantasy-icon {
+  display: block;
+  object-fit: contain;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.nav > .fantasy-icon {
+  width: 31px;
+  height: 31px;
+  margin: -5px;
+}
+.hero-generated.fantasy-icon {
+  width: 100%;
+  height: 230px;
+  filter: drop-shadow(0 15px 16px #063c3b30);
+}
+.level-symbol {
+  background: none !important;
+  width: 67px;
+  height: 67px;
+  margin-bottom: 4px;
+}
+.level-symbol .fantasy-icon {
+  width: 100%;
+  height: 100%;
+}
+.song-art > .fantasy-icon {
+  width: 95px;
+  height: 95px;
+}
+.song-art > small {
+  display: none;
+}
+.tablet-entry {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: right;
+  background: #fff6d9;
+  border: 1px solid #ead48e;
+  border-radius: 18px;
+  width: 100%;
+  padding: 18px 25px;
+  margin-bottom: 25px;
+}
+.tablet-entry > .fantasy-icon {
+  width: 84px;
+  height: 84px;
+}
+.tablet-entry > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tablet-entry small {
+  color: #9c7c2d;
+  font-size: 0.75rem;
+}
+.tablet-entry b {
+  font-size: 1.2rem;
+  color: #3c573e;
+}
+.tablet-entry > span > span {
+  font-size: 0.83rem;
+  color: #778062;
+}
+.entry-cta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+  color: #176b53;
+  font-size: 0.87rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tablet-studio {
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at 85% 0%, #e5f3e9 0%, transparent 50%), #f8fbf7;
+  padding: 0 max(24px, calc((100vw - 1250px) / 2)) 35px;
+}
+.tablet-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 88px;
+  border-bottom: 1px solid #dfe8df;
+  margin-bottom: 28px;
+}
+.tablet-brand {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.tablet-brand .fantasy-icon {
+  width: 55px;
+  height: 55px;
+}
+.tablet-brand b {
+  font-size: 1rem;
+}
+.tablet-tools {
+  display: flex;
+  gap: 9px;
+}
+.tablet-tools button {
+  background: #fff9;
+}
+.tablet-top .small-button {
+  background: #fff9;
+  min-height: 44px;
+}
+.keyboard-setup {
+  max-width: 1050px;
+  margin: auto;
+}
+.setup-title {
+  text-align: center;
+  max-width: 650px;
+  margin: 0 auto 27px;
+}
+.setup-title > .fantasy-icon {
+  width: 115px;
+  height: 100px;
+  margin: auto;
+}
+.setup-title h1 {
+  font-size: 2rem;
+  margin: 5px 0 10px;
+}
+.setup-title p {
+  font-size: 0.95rem;
+}
+.setup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.setup-grid .card {
+  padding: 28px;
+}
+.step-label {
+  font-size: 0.78rem;
+  color: #9a7a32;
+  display: block;
+  margin-bottom: 10px;
+}
+.setup-grid h2 {
+  font-size: 1.35rem;
+  margin-bottom: 15px;
+}
+.setup-grid p {
+  font-size: 0.91rem;
+  margin-bottom: 17px;
+}
+.setup-key-diagram {
+  display: flex;
+  background: #243b30;
+  padding: 8px;
+  gap: 2px;
+  height: 130px;
+  border-radius: 10px;
+  margin: 24px 0;
+}
+.setup-key-diagram > div {
+  position: relative;
+  flex: 1;
+  background: #fffdf2;
+  border-radius: 0 0 5px 5px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+}
+.setup-key-diagram .start-key {
+  background: #f2cf66;
+}
+.setup-key-diagram i {
+  position: absolute;
+  right: -28%;
+  top: 0;
+  width: 58%;
+  height: 61%;
+  background: #21372c;
+  border-bottom: 5px solid #152d23;
+  border-radius: 0 0 4px 4px;
+  z-index: 1;
+}
+.check-dots {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin: 23px 0;
+}
+.check-dots > span {
+  display: grid;
+  place-items: center;
+  width: 47px;
+  height: 47px;
+  border: 2px dashed #c8d7c9;
+  border-radius: 50%;
+  color: #8c9e8c;
+}
+.check-dots .checked {
+  border-style: solid;
+  border-color: #3e9371;
+  background: #e3f3e5;
+  color: #25815f;
+}
+.sound-meter {
+  height: 7px;
+  border-radius: 10px;
+  background: #dfe9df;
+  overflow: hidden;
+}
+.sound-meter > i {
+  display: block;
+  height: 100%;
+  background: #56a17a;
+  transition: width 0.1s;
+}
+.setup-grid [role="status"] {
+  background: #f2f7ee;
+  padding: 14px;
+  border-radius: 9px;
+  min-height: 77px;
+  margin-top: 20px;
+  color: #486b4f;
+}
+.mapped-keys {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0;
+}
+.mapped-keys > span {
+  flex: 1;
+  text-align: center;
+  font-size: 1.2rem;
+  background: #f8f2dd;
+  padding: 8px 2px;
+  border-radius: 6px;
+}
+.mapped-keys small {
+  display: block;
+  font-size: 0.65rem;
+  color: #8d896c;
+}
+.setup-grid .text-button {
+  display: block;
+  margin-top: 13px;
+}
+.setup-privacy {
+  text-align: center;
+  font-size: 0.77rem;
+  margin: 20px;
+}
+.tablet-lesson-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 25px;
+}
+.tablet-lesson-bar .eyebrow {
+  font-size: 0.92rem;
+}
+.tablet-dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.tablet-dots > span {
+  width: 8px;
+  height: 8px;
+  background: #dce6da;
+  border-radius: 50%;
+}
+.tablet-dots > .current {
+  background: #d5ad48;
+  width: 25px;
+  border-radius: 10px;
+}
+.tablet-dots > .past {
+  background: #9ebf9d;
+}
+.coach-stage {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 180px;
+  gap: 25px;
+  align-items: center;
+  max-width: 1120px;
+  margin: auto;
+}
+.coach-friend {
+  text-align: center;
+}
+.coach-friend .fantasy-icon {
+  width: 220px;
+  height: 220px;
+  margin: auto;
+  filter: drop-shadow(0 12px 18px #778b7320);
+}
+.coach-friend > span {
+  display: block;
+  font-size: 0.83rem;
+  color: #6b856c;
+  margin: 5px 0 16px;
+}
+.coach-friend > .sound-meter {
+  max-width: 130px;
+  margin: auto;
+}
+.giant-note {
+  text-align: center;
+  min-height: 340px;
+  background: #fff;
+  border: 1px solid #dce8d9;
+  border-radius: 30px;
+  box-shadow: 0 7px 0 #dfeadb;
+  padding: 24px 28px;
+}
+.note-stage-label {
+  font-size: 1rem;
+  color: #76846b;
+}
+.giant-number {
+  font-size: 9rem;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #176b53;
+  letter-spacing: -5px;
+  margin: 8px 0 0;
+}
+.giant-note-name {
+  font-size: 1.05rem;
+  color: #66835d;
+  margin-bottom: 18px;
+}
+.tablet-feedback {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #435d40;
+  min-height: 56px;
+  background: #f4f7e9;
+  border-radius: 13px;
+  padding: 12px;
+}
+.up-next {
+  align-self: center;
+}
+.up-next > span {
+  display: block;
+  color: #8b9884;
+  font-size: 0.84rem;
+  margin: 16px 0;
+}
+.up-next > div {
+  display: flex;
+  gap: 7px;
+}
+.up-next > div > span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 60px;
+  border: 1px solid #dfdfcb;
+  background: #fffaf0;
+  border-radius: 12px;
+  font-size: 1.65rem;
+  color: #ac985f;
+}
+.tablet-progress {
+  height: 7px;
+  background: #e4ebde;
+  border-radius: 8px;
+  overflow: hidden;
+  max-width: 610px;
+  margin: 30px auto 0;
+}
+.tablet-progress > i {
+  display: block;
+  height: 100%;
+  background: #8eb883;
+  transition: width 0.3s;
+}
+.tablet-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin: 26px 0 21px;
+  flex-wrap: wrap;
+}
+.tablet-actions > .button {
+  min-height: 58px;
+  font-size: 1.08rem;
+  padding: 15px 27px;
+  border-radius: 14px;
+  box-shadow: 0 4px 0 #11543f;
+}
+.tablet-actions > .outline {
+  box-shadow: 0 4px 0 #dce6d7;
+}
+.tablet-actions > .sunshine {
+  background: #f2ce6c;
+  color: #5e512a;
+  box-shadow: 0 4px 0 #d3b04a;
+}
+.tablet-footnote {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.76rem;
+  color: #87947d;
+  margin: 0 auto 30px;
+  max-width: 900px;
+}
+.big-star {
+  font-size: 7.5rem;
+  line-height: 1.6;
+  color: #e2b447;
+}
+.tablet-library {
+  border-top: 1px solid #e0e8dc;
+  padding-top: 23px;
+}
+.tablet-library h3 {
+  font-size: 1rem;
+  margin-bottom: 16px;
+}
+.tablet-library > div {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 3px 3px 10px;
+}
+.tablet-library button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 135px;
+  border: 1px solid #e0e8db;
+  background: white;
+  border-radius: 14px;
+  padding: 12px;
+  font-size: 0.75rem;
+}
+.tablet-library button.selected {
+  background: #eaf5e5;
+  border-color: #8daf81;
+}
+.tablet-library .fantasy-icon {
+  width: 65px;
+  height: 60px;
+}
+.tablet-library > p {
+  font-size: 0.75rem;
+  margin-top: 13px;
+}
+@media (max-width: 1050px) {
+  .coach-stage {
+    grid-template-columns: 170px minmax(0, 1fr) 130px;
+    gap: 16px;
+  }
+  .coach-friend .fantasy-icon {
+    width: 170px;
+    height: 180px;
+  }
+  .giant-note {
+    padding: 22px;
+  }
+  .giant-number {
+    font-size: 8rem;
+  }
+  .up-next > div {
+    flex-wrap: wrap;
+  }
+  .up-next > div > span {
+    width: 36px;
+    height: 46px;
+    font-size: 1.35rem;
+  }
+  .tablet-top {
+    margin-bottom: 22px;
+  }
+  .tablet-lesson-bar {
+    margin-bottom: 18px;
+  }
+}
+@media (max-width: 700px) {
+  .tablet-entry {
+    padding: 15px;
+    gap: 11px;
+    flex-wrap: wrap;
+  }
+  .tablet-entry > .fantasy-icon {
+    width: 63px;
+    height: 67px;
+  }
+  .tablet-entry b {
+    font-size: 1rem;
+  }
+  .tablet-entry > span > span {
+    font-size: 0.69rem;
+  }
+  .entry-cta {
+    width: 100%;
+    justify-content: center;
+    background: #f4e3aa;
+    padding: 10px;
+    border-radius: 8px;
+  }
+  .hero-generated.fantasy-icon {
+    height: 170px;
+  }
+  .tablet-studio {
+    padding: 0 16px 25px;
+  }
+  .tablet-top {
+    min-height: 76px;
+    gap: 5px;
+    margin-bottom: 18px;
+  }
+  .tablet-brand b {
+    font-size: 0.76rem;
+  }
+  .tablet-brand .fantasy-icon {
+    width: 39px;
+    height: 39px;
+  }
+  .tablet-tools {
+    gap: 5px;
+  }
+  .tablet-tools .icon-button {
+    width: 37px;
+  }
+  .tablet-tools svg {
+    width: 18px;
+  }
+  .tablet-top .small-button {
+    padding: 8px;
+    font-size: 0.7rem;
+  }
+  .tablet-top .small-button svg {
+    width: 15px;
+  }
+  .setup-title h1 {
+    font-size: 1.55rem;
+  }
+  .setup-title p {
+    font-size: 0.85rem;
+  }
+  .setup-grid {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .setup-grid .card {
+    padding: 22px;
+  }
+  .setup-title > .fantasy-icon {
+    width: 85px;
+    height: 85px;
+  }
+  .coach-stage {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    position: relative;
+  }
+  .coach-friend {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .coach-friend .fantasy-icon {
+    width: 70px;
+    height: 65px;
+    margin: 0;
+  }
+  .coach-friend > span {
+    margin: 0;
+    font-size: 0.8rem;
+  }
+  .coach-friend .sound-meter {
+    width: 60px;
+    margin: 0;
+  }
+  .giant-note {
+    min-height: 290px;
+    padding: 20px;
+  }
+  .giant-number {
+    font-size: 7rem;
+  }
+  .tablet-feedback {
+    font-size: 0.91rem;
+  }
+  .up-next {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+  }
+  .up-next > span {
+    margin: 0;
+    font-size: 0.73rem;
+  }
+  .up-next > div > span {
+    width: 32px;
+    height: 36px;
+    font-size: 1.2rem;
+    border-radius: 7px;
+  }
+  .tablet-progress {
+    margin-top: 18px;
+  }
+  .tablet-actions {
+    gap: 10px;
+    margin-top: 22px;
+  }
+  .tablet-actions > .button {
+    font-size: 0.92rem;
+    padding: 13px 18px;
+    min-height: 54px;
+  }
+  .tablet-footnote {
+    font-size: 0.63rem;
+  }
+  .tablet-lesson-bar .eyebrow {
+    font-size: 0.77rem;
+  }
+  .tablet-lesson-bar .text-button {
+    font-size: 0.7rem;
+  }
+  .tablet-library button {
+    min-width: 119px;
+  }
+  .nav > .fantasy-icon {
+    width: 28px;
+    height: 28px;
+    margin: -3px 0 0;
+  }
+  .song-art > .fantasy-icon {
+    width: 85px;
+    height: 100px;
+  }
+}
+@media (min-width: 701px) and (max-height: 800px) {
+  .tablet-top {
+    min-height: 65px;
+    margin-bottom: 14px;
+  }
+  .tablet-lesson-bar {
+    margin-bottom: 12px;
+  }
+  .giant-note {
+    min-height: 270px;
+    padding: 18px 22px;
+  }
+  .giant-number {
+    font-size: 6.5rem;
+  }
+  .giant-note-name {
+    margin-bottom: 10px;
+  }
+  .coach-friend .fantasy-icon {
+    height: 170px;
+    width: 170px;
+  }
+  .tablet-progress {
+    margin-top: 20px;
+  }
+  .tablet-actions {
+    margin-top: 20px;
+    margin-bottom: 16px;
+  }
+  .tablet-footnote {
+    margin-bottom: 20px;
+  }
+}

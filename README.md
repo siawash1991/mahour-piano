@@ -4,6 +4,14 @@
 
 A Persian / RTL piano practice web app for a seven-year-old beginner, with a progressive path toward early intermediate skills. Built with React, TypeScript and Vite; deployed to Vercel. No account, backend, analytics, external runtime CDN, or audio upload.
 
+## Tablet above a small keyboard
+
+Choose the prominent tablet card on the home page. With an adult, locate a C key with eight white keys available to its right, play it three times with releases, and confirm the displayed octave before placing 1–8 labels. The app speaks bundled Persian prompts, highlights one large number, and listens to the physical keyboard. Seven beginner items fit the numbered range; use the general studio for the later curriculum.
+
+The tablet supports a base of C3, C4 or C5 and transposes its examples and expected pitches accordingly. This setting does not transpose the separate advanced studio. A held note is not intentionally counted repeatedly. Ambiguous sound is unscored. Test with your actual keyboard before relying on its assessment.
+
+See [custom generated assets and exact prompts](docs/GENERATED_ASSETS.md).
+
 ## Features
 
 - Six stages, 22 guided exercises and eight independently entered educational melody arrangements.

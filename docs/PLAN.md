@@ -20,3 +20,11 @@ Automated DSP fixtures cover C3–G5 examples at 44.1 and 48 kHz with harmonics 
 4. Select microphone, allow it and play isolated C4 notes without sustain pedal.
 5. If notes are misidentified, reduce background noise and try MIDI where available.
 6. Finish one lesson, view its source-labeled report and export if needed.
+
+## Tablet-on-keyboard update
+
+Delivered a dedicated eight-key beginner experience: three separate C-note attacks calibrate C3/C4/C5; numbered exercises are transposed to the calibrated octave; three fantasy image assets; twelve same-origin Persian voice clips; large current/next key instructions; four-note chunks followed by separately scored full performances; pause/cancellation handling; microphone cleanup; uncertain-input filtering; optional fullscreen and Screen Wake Lock; eight-minute rest reminder. The general studio and its advanced lessons are preserved.
+
+The tablet flow deliberately starts with seven suitable exercises/songs using only the numbered white-key octave. It is not an automatic replacement for the advanced curriculum. It does not infer fingering, keybed length, or posture. A parent verifies the eight physical labels after calibration. Calibration is checked again when entering tablet mode, even though the last base is retained.
+
+Validation: 25 DSP/content/gating tests plus 10 component integration tests. New integration coverage includes C3 transposition, partial/full separation, pause safety and microphone permission denial. Physical keyboard and tablet hardware validation remains outstanding.

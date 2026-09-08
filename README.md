@@ -1,5 +1,7 @@
 # Mahour — Piano Kid
 
+**[Open the app](https://mahour-piano.vercel.app)** · [Research](docs/RESEARCH.md)
+
 A Persian / RTL piano practice web app for a seven-year-old beginner, with a progressive path toward early intermediate skills. Built with React, TypeScript and Vite; deployed to Vercel. No account, backend, analytics, external runtime CDN, or audio upload.
 
 ## Features

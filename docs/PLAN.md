@@ -3,8 +3,10 @@
 1. **Research — complete:** primary pedagogical and browser/DSP sources; distinguish numbering from fingers; document assumptions and limits.
 2. **Learning design — complete:** six stages, 22 exercises, eight repertoire items; printable labels; fading to note names/notation; parent instructions.
 3. **Working app — complete:** Persian responsive interface, synthesized demo, section/full practice, microphone and MIDI, feedback, timing, progress/export.
-4. **Validation — in progress:** TypeScript and production build; synthetic pitch tests; component-level exercise/storage/input-denial tests; deployed HTTP smoke checks.
-5. **Publication — pending:** public GitHub repository, Vercel production deployment, source integration and final URL verification.
+4. **Validation — complete within the documented test boundary:** TypeScript and production build; synthetic pitch tests; component-level exercise/storage/input-denial tests; deployed HTTP smoke checks.
+5. **Publication — complete:** [public GitHub repository](https://github.com/siawash1991/mahour-piano), [Vercel production deployment](https://mahour-piano.vercel.app), connected GitHub integration. Unauthenticated production HTML, JS and CSS all returned HTTP 200.
+
+Validation: 21 DSP/content tests and six component integration tests passed. TypeScript and local/remote Vercel production builds passed.
 
 ## Validation boundary
 

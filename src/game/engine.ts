@@ -1,4 +1,4 @@
-import { songs, type Step } from "../curriculum.ts";
+import { songs, western, type Step } from "../curriculum.ts";
 /** The white keys from middle C up; drills are written against the first eight. */
 export const lane = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79];
 const WHITE = [0, 2, 4, 5, 7, 9, 11];
@@ -8,6 +8,7 @@ export const isWhite = (m: number) => WHITE.includes(((m % 12) + 12) % 12);
  * and a black key borrows the number of the white below it plus a sharp.
  */
 export function keyLabel(m: number): string {
+  if (m < 60) return western(m);
   if (!isWhite(m)) return keyLabel(m - 1) + "♯";
   let n = 0;
   for (let x = 60; x <= m; x++) if (isWhite(x)) n++;
@@ -254,15 +255,55 @@ export function schedule(beats: number[], bpm: number) {
 export type Verdict = "perfect" | "good" | "wrong" | "early" | "late";
 /** Slow practice speeds widen the timing window by the same factor, capped at 2x. */
 export const tolerance = (speed: number) => Math.min(2, 1 / speed);
+/** How far off the beat a note still counts, and how close it has to be to read as perfect. */
+export const WINDOW = 500;
+export const PERFECT = 250;
+export const windowFor = (tol: number) => WINDOW * tol;
 export function judge(
   expected: number,
   actual: number,
   delta: number,
   tol = 1,
 ): Verdict {
-  if (Math.abs(delta) > 380 * tol) return delta < 0 ? "early" : "late";
+  if (Math.abs(delta) > WINDOW * tol) return delta < 0 ? "early" : "late";
   if (expected !== actual) return "wrong";
-  return Math.abs(delta) <= 180 * tol ? "perfect" : "good";
+  return Math.abs(delta) <= PERFECT * tol ? "perfect" : "good";
+}
+export type Pending = { index: number; at: number; midi: number };
+/**
+ * Decide which note a heard pitch was meant for. The exact pitch inside the timing window wins;
+ * failing that the same note an octave out, so a child on a differently placed keyboard is not
+ * punished for it; and only if neither is there does the nearest note still waiting take the
+ * blame. Matching on time alone would score a correct note against a note the child already
+ * missed, turning one hesitation into a run of red.
+ */
+export function match(
+  heard: number,
+  pending: Pending[],
+  elapsed: number,
+  window: number,
+) {
+  const sooner = (a: Pending, b: Pending) =>
+    Math.abs(a.at - elapsed) <= Math.abs(b.at - elapsed) ? a : b;
+  const near = pending.filter((p) => Math.abs(p.at - elapsed) <= window);
+  const best = (test: (p: Pending) => boolean) =>
+    near.filter(test).reduce<Pending | undefined>(
+      (a, b) => (a ? sooner(a, b) : b),
+      undefined,
+    );
+  const exact = best((p) => p.midi === heard);
+  if (exact) return { pick: exact, matched: true, octave: 0 };
+  const octave = best((p) => (heard - p.midi) % 12 === 0);
+  if (octave)
+    return { pick: octave, matched: true, octave: heard - octave.midi };
+  return {
+    pick: pending.reduce<Pending | undefined>(
+      (a, b) => (a ? sooner(a, b) : b),
+      undefined,
+    ),
+    matched: false,
+    octave: 0,
+  };
 }
 export function stars(hit: number, total: number) {
   const accuracy = hit / total;

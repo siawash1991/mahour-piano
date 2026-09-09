@@ -62,11 +62,10 @@ export class NoteGate {
       return null;
     }
     this.quiet = 0;
-    if (!p || p.confidence < confidence) {
-      this.candidate = -1;
-      this.stable = 0;
-      return null;
-    }
+    // An unreadable frame is missing evidence, not contrary evidence: a real attack is noisy and
+    // often has a glitchy frame or two, so hold the count instead of throwing it away. Only a
+    // different, confident pitch actually contradicts what we thought we were hearing.
+    if (!p || p.confidence < confidence) return null;
     if (this.candidate === p.midi) this.stable++;
     else {
       this.candidate = p.midi;

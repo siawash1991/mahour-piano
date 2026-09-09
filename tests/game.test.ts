@@ -1,8 +1,15 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {judge,schedule,stars,stages,worldList,cut,tolerance,board,keyLabel,isWhite} from '../src/game/engine.ts';
+import {judge,schedule,stars,stages,worldList,cut,tolerance,board,keyLabel,isWhite,match,windowFor,WINDOW,PERFECT} from '../src/game/engine.ts';
 test('falling-note timestamps track beat duration and count-in',()=>{assert.deepEqual(schedule([1,2,1],60),[3200,4200,6200])});
 test('slow practice stretches the schedule and widens the timing window',()=>{assert.deepEqual(schedule([1],30),[3200]);assert.equal(schedule([1,1],30)[1]-3200,2000);assert.equal(tolerance(.5),2);assert.equal(tolerance(1),1);assert.equal(tolerance(.25),2);assert.equal(judge(60,60,300,2),'perfect');assert.equal(judge(60,60,300,1),'good')});
-test('pitch and timing must both match; early and late taps cannot score',()=>{assert.equal(judge(60,60,0),'perfect');assert.equal(judge(60,60,250),'good');assert.equal(judge(60,62,0),'wrong');assert.equal(judge(60,60,-500),'early');assert.equal(judge(60,60,500),'late')});
+test('pitch and timing must both match; early and late taps cannot score',()=>{
+  assert.equal(judge(60,60,0),'perfect');
+  assert.equal(judge(60,60,PERFECT),'perfect');
+  assert.equal(judge(60,60,PERFECT+1),'good');
+  assert.equal(judge(60,62,0),'wrong');
+  assert.equal(judge(60,60,-(WINDOW+1)),'early');
+  assert.equal(judge(60,60,WINDOW+1),'late');
+});
 test('star gate does not unlock next stage below 60 percent',()=>{assert.equal(stars(2,4),0);assert.equal(stars(3,4),1);assert.equal(stars(4,4),3)});
 test('a lonely tail chunk folds back instead of becoming a one-note stage',()=>{const s=[1,2,3,4,5].map(()=>({midi:60,beats:1}));assert.deepEqual(cut(s,4).map(c=>c.length),[5]);assert.deepEqual(cut(s,2).map(c=>c.length),[2,3])});
 test('the keyboard strip always starts at middle C, covers the stage, and reads like a piano',()=>{
@@ -40,4 +47,44 @@ test('one hundred stages ramp up and difficulty never jumps',()=>{
     assert.ok(s.steps.length<=Math.max(6,longest*4),`${s.id} jumps from ${longest} to ${s.steps.length} notes`);
     longest=Math.max(longest,s.steps.length);
   }
+});
+
+const pending=(...n:[number,number][])=>n.map(([at,midi],index)=>({index,at,midi}));
+test('a correct note is scored against the note it matches, not the one nearest in time',()=>{
+  // The child let the first note go by and plays the second one correctly, still inside its window.
+  const notes=pending([1000,60],[1400,64]);
+  const m=match(64,notes,1400,WINDOW);
+  assert.equal(m.matched,true);
+  assert.equal(m.pick!.index,1,'a correct note must not be blamed on the note already missed');
+});
+test('the exact pitch wins over the same note an octave away',()=>{
+  const notes=pending([1000,72],[1050,60]);
+  const m=match(72,notes,1000,WINDOW);
+  assert.equal(m.pick!.index,0);
+  assert.equal(m.octave,0);
+});
+test('the right note an octave out still counts, and reports the shift',()=>{
+  const m=match(72,pending([1000,60]),1000,WINDOW);
+  assert.equal(m.matched,true);
+  assert.equal(m.octave,12);
+  const down=match(48,pending([1000,60]),1000,WINDOW);
+  assert.equal(down.matched,true);
+  assert.equal(down.octave,-12);
+});
+test('a genuinely wrong note is blamed on the nearest note still waiting',()=>{
+  const m=match(65,pending([1000,60],[1600,64]),1050,WINDOW);
+  assert.equal(m.matched,false);
+  assert.equal(m.pick!.index,0);
+});
+test('a correct pitch outside every window is not a free hit',()=>{
+  const m=match(60,pending([1000,60]),1000+WINDOW+1,WINDOW);
+  assert.equal(m.matched,false);
+});
+test('nothing left to play matches nothing',()=>{
+  assert.equal(match(60,[],1000,WINDOW).pick,undefined);
+});
+test('slow practice widens the window that both the judge and the matcher use',()=>{
+  assert.equal(windowFor(2),WINDOW*2);
+  assert.equal(match(60,pending([1000,60]),1000+WINDOW+200,windowFor(2)).matched,true);
+  assert.equal(judge(60,60,WINDOW+200,2),'good');assert.equal(judge(60,60,PERFECT*2,2),'perfect');
 });

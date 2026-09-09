@@ -18,9 +18,11 @@ import {
   stages,
   worldList,
   schedule,
-  judge,
   stars,
   tolerance,
+  windowFor,
+  PERFECT,
+  match,
   speeds,
   readSpeed,
   saveSpeed,
@@ -175,7 +177,8 @@ export function RhythmGame({
   };
   const begin = (index = selected) => {
     const s = stages[index];
-    const tol = tolerance(speed);
+    const tol = tolerance(speed),
+      window = windowFor(tol);
     const times = schedule(
       s.steps.map((step) => step.beats),
       s.bpm * speed,
@@ -205,7 +208,7 @@ export function RhythmGame({
       setTime(elapsed);
       if (signal.current === "clear") clear.current = true;
       times.forEach((at, i) => {
-        if (elapsed > at + 380 * tol && !done.current.has(i)) {
+        if (elapsed > at + window && !done.current.has(i)) {
           done.current.add(i);
           errors.current++;
           streak.current = 0;
@@ -252,64 +255,51 @@ export function RhythmGame({
     }
     if (!live.current) return;
     const { stage: s, times, tol } = run.current;
+    const window = windowFor(tol);
     const elapsed = performance.now() - start.current;
     // The count-in is free warm-up: notes played before the first one is even catchable are
     // neither judged nor counted, and the gate is re-armed so the real attempt still lands.
-    if (elapsed < times[0] - 380 * tol) {
+    if (elapsed < times[0] - window) {
       mic.rearm();
       setFeedback("صبر کن تا شماره به خط طلایی برسد");
       return;
     }
-    let closest = -1;
-    times.forEach((at, i) => {
-      if (
-        !done.current.has(i) &&
-        (closest === -1 ||
-          Math.abs(at - elapsed) < Math.abs(times[closest] - elapsed))
-      )
-        closest = i;
-    });
-    if (closest < 0) return;
-    let key = base;
-    const off = m - transpose(s.steps[closest].midi, key);
-    // The very first note of a stage also settles which octave the child's keyboard sits in:
-    // the right note in the wrong octave re-bases the game instead of being marked wrong.
-    if (
-      hit.current === 0 &&
-      errors.current === 0 &&
-      off !== 0 &&
-      off % 12 === 0 &&
-      validBase(base + off)
-    ) {
-      key = base + off;
-      setBase(key);
-      saveBase(key);
+    const pending = s.steps
+      .map((step, index) => ({
+        index,
+        at: times[index],
+        midi: transpose(step.midi, base),
+      }))
+      .filter((p) => !done.current.has(p.index));
+    const { pick, matched, octave } = match(m, pending, elapsed, window);
+    if (!pick) return;
+    // Playing the right note an octave out settles which octave the keyboard sits in, so the
+    // guide and the notes still to come line up with what the child is actually touching.
+    if (octave && validBase(base + octave)) {
+      setBase(base + octave);
+      saveBase(base + octave);
     }
-    const result = judge(
-      transpose(s.steps[closest].midi, key),
-      m,
-      elapsed - times[closest],
-      tol,
-    );
-    if (result === "perfect" || result === "good") {
-      done.current.add(closest);
+    const delta = elapsed - pick.at;
+    if (matched) {
+      done.current.add(pick.index);
       hit.current++;
       streak.current++;
-      points.current += result === "perfect" ? 100 : 60;
+      const perfect = Math.abs(delta) <= PERFECT * tol;
+      points.current += perfect ? 100 : 60;
       setScore(points.current);
       setHits(hit.current);
       setCombo(streak.current);
       setResolved(new Set(done.current));
-      pulse(true, result === "perfect" ? "عالی! دقیق روی ضرب ✨" : "درست بود!");
+      pulse(true, perfect ? "عالی! دقیق روی ضرب ✨" : "درست بود!");
     } else {
       errors.current++;
       streak.current = 0;
       setCombo(0);
       pulse(
         false,
-        result === "wrong"
-          ? `${noteName(m)} شنیدم؛ کلید ${keyLabel(s.steps[closest].midi)} را بزن`
-          : result === "early"
+        Math.abs(delta) <= window
+          ? `${noteName(m)} شنیدم؛ کلید ${keyLabel(s.steps[pick.index].midi)} را بزن`
+          : delta < 0
             ? "کمی زود بود؛ صبر کن به خط برسد"
             : "دیر شد؛ شمارهٔ بعدی را دنبال کن",
       );
@@ -626,7 +616,7 @@ export function RhythmGame({
                     "falling-note " +
                     (k.white ? "" : "black ") +
                     (Math.abs(run.current.times[i] - time) <
-                    380 * run.current.tol
+                    windowFor(run.current.tol)
                       ? "near"
                       : "")
                   }
@@ -660,8 +650,14 @@ export function RhythmGame({
             ))}
           </div>
           <p className="game-caption">
-            کلیدهای این تصویر راهنما هستند؛ روی کیبورد واقعی بزن.{" "}
-            {heard !== null && `می‌شنوم: ${western(heard)}`}
+            <b>
+              {heard === null
+                ? mic.quality === "quiet"
+                  ? "هنوز هیچ صدایی نشنیده‌ام — ساز را نزدیک‌تر کن یا حساسیت را زیاد کن"
+                  : "صدا می‌رسد، اما هنوز نتی تشخیص ندادم"
+                : `می‌شنوم: ${western(heard)} · ${noteName(heard)} = کلید ${keyLabel(heard - base + 60)}`}
+            </b>{" "}
+            کلیدهای این تصویر راهنما هستند؛ روی کیبورد واقعی بزن.
           </p>
         </>
       ) : (

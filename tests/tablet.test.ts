@@ -46,3 +46,22 @@ test("held notes count once and silence rearms repeated attacks", () => {
   gate.accept(p, 0.1);
   assert.equal(gate.accept(p, 0.1), 60);
 });
+test("a glitchy frame mid-attack does not throw away the note", () => {
+  const gate = new NoteGate(),
+    p = { midi: 60, confidence: 0.99 };
+  // A real piano attack is inharmonic for a moment: the detector reads nothing, then recovers.
+  assert.equal(gate.accept(p, 0.1), null);
+  assert.equal(gate.accept(null, 0.1), null);
+  assert.equal(gate.accept(p, 0.1), null);
+  assert.equal(gate.accept({ midi: 60, confidence: 0.5 }, 0.1), null);
+  assert.equal(gate.accept(p, 0.1), 60);
+});
+test("a different confident pitch still contradicts and restarts the count", () => {
+  const gate = new NoteGate();
+  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
+  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
+  assert.equal(gate.accept({ midi: 67, confidence: 0.99 }, 0.1), null);
+  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
+  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
+  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), 60);
+});

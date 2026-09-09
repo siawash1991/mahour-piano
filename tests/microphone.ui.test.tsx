@@ -17,17 +17,19 @@ it("requests real microphone permission before audio initialization and delivers
     configurable: true,
     value: { getUserMedia },
   });
+  let amplitude=0;
   const analyser = {
+    connect:vi.fn(),
     fftSize: 4096,
     getFloatTimeDomainData: (data: Float32Array) => {
       for (let i = 0; i < data.length; i++)
-        data[i] = 0.12 * Math.sin((2 * Math.PI * 261.625565 * i) / 48000);
+        data[i] = amplitude * Math.sin((2 * Math.PI * 261.625565 * i) / 48000);
     },
   };
   state.context.mockImplementation(async () => {
     expect(getUserMedia).toHaveBeenCalledTimes(1);
     return {
-      sampleRate: 48000,
+      sampleRate: 48000, state:"running", destination:{}, createGain:()=>({gain:{value:1},connect:vi.fn(),disconnect:vi.fn()}),
       createMediaStreamSource: () => ({
         connect: vi.fn(),
         disconnect: vi.fn(),
@@ -46,7 +48,9 @@ it("requests real microphone permission before audio initialization and delivers
     await result.current.start();
   });
   expect(result.current.active).toBe(true);
-  for (const time of [100, 140, 180, 220])
+  for(const time of [100,400,800,1200])await act(async()=>{state.frame?.(time)});
+  amplitude=.0007; // Previously rejected by the fixed .008 gate.
+  for (const time of [1350, 1390, 1430,1470])
     await act(async () => {
       state.frame?.(time);
     });

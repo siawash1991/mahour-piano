@@ -54,15 +54,15 @@ export class NoteGate {
     this.stable = 0;
     this.quiet = 0;
   }
-  accept(p: { midi: number; confidence: number } | null, rms: number) {
-    if (rms < 0.008) {
+  accept(p: { midi: number; confidence: number } | null, rms: number, floor=.008, confidence=.92) {
+    if (rms < floor) {
       if (++this.quiet >= 3) this.last = -1;
       this.candidate = -1;
       this.stable = 0;
       return null;
     }
     this.quiet = 0;
-    if (!p || p.confidence < 0.92) {
+    if (!p || p.confidence < confidence) {
       this.candidate = -1;
       this.stable = 0;
       return null;

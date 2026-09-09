@@ -84,6 +84,8 @@ export function RhythmGame({
     (m) => handler.current(m),
     () => live.current || checkRef.current,
   );
+  const signal = useRef(mic.quality);
+  signal.current = mic.quality;
   const pulse = (good: boolean, text: string) => {
     setFlash(good ? "success" : "error");
     setFeedback(text);
@@ -133,6 +135,7 @@ export function RhythmGame({
   };
   const connect = async () => {
     stop();
+    setHeard(null);
     const token = epoch.current;
     setStatus("منتظر اجازهٔ میکروفون…");
     try {
@@ -152,7 +155,7 @@ export function RhythmGame({
     }
   };
   const begin = () => {
-    if (!mic.active) return;
+    if (!mic.active || mic.calibrating) return;
     checkRef.current = false;
     setChecking(false);
     done.current = new Set();
@@ -174,6 +177,18 @@ export function RhythmGame({
       if (!live.current) return;
       const elapsed = performance.now() - start.current;
       setTime(elapsed);
+      if (
+        times.some((at, i) => elapsed > at + 380 && !done.current.has(i)) &&
+        signal.current !== "clear"
+      ) {
+        stop();
+        setScreen("ready");
+        setHeard(null);
+        setStatus(
+          "صدای نت واضح نرسید؛ بازی بدون ثبت شکست متوقف شد. ورودی و حساسیت را بررسی کن و دوباره شروع کن.",
+        );
+        return;
+      }
       times.forEach((at, i) => {
         if (elapsed > at + 380 && !done.current.has(i)) {
           done.current.add(i);
@@ -356,6 +371,57 @@ export function RhythmGame({
             </div>
           </div>
           <p role="status">{status}</p>
+          <div className="microphone-settings">
+            <p aria-live="polite">{mic.diagnostic}</p>
+            {mic.calibrating && (
+              <b>۱ ثانیه هیچ کلیدی نزن؛ دارم صدای محیط را می‌سنجم.</b>
+            )}
+            <label>
+              حساسیت شنیدن{" "}
+              <input
+                aria-label="حساسیت شنیدن"
+                type="range"
+                min="1"
+                max="6"
+                step="1"
+                value={mic.sensitivity ?? 2}
+                onChange={(e) => mic.setSensitivity(+e.target.value)}
+              />
+              <b>{fa(mic.sensitivity ?? 2)}</b>
+            </label>
+            <label>
+              میکروفون دستگاه{" "}
+              <select
+                value={mic.deviceId ?? ""}
+                onChange={(e) => {
+                  setHeard(null);
+                  mic.selectDevice(e.target.value);
+                }}
+              >
+                <option value="">ورودی پیش‌فرض دستگاه</option>
+                {mic.devices?.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || "میکروفون " + fa(i + 1)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={mic.automatic ?? true}
+                onChange={(e) => {
+                  setHeard(null);
+                  mic.setAutomatic(e.target.checked);
+                }}
+              />
+              تقویت خودکار صدای ضعیف (اگر دستگاه پشتیبانی کند)
+            </label>
+            <small>
+              اگر هدفون Bluetooth وصل است، میکروفون داخلی تبلت را انتخاب کن. بعد
+              از تغییر ورودی یا تقویت، دوباره فعال‌سازی را بزن.
+            </small>
+          </div>
           <div className="heard-note">
             آخرین نت شنیده‌شده:{" "}
             <b>
@@ -388,7 +454,12 @@ export function RhythmGame({
             </button>
             <button
               className="button"
-              disabled={!mic.active || heard === null || !validBase(heard)}
+              disabled={
+                !mic.active ||
+                mic.calibrating ||
+                heard === null ||
+                !validBase(heard)
+              }
               onClick={begin}
             >
               <Play />

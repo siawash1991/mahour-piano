@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {noiseFloor,signalThreshold,meter} from '../src/tablet/signal.ts';import {detectPitch} from '../src/pitch.ts';
+test('quiet keyboard below previous gate is detected with calibrated threshold',()=>{for(const amplitude of [.0002,.0007,.002]){const data=Float32Array.from({length:4096},(_,i)=>amplitude*Math.sin(2*Math.PI*261.625565*i/48000));assert.equal(detectPitch(data,48000,signalThreshold(.00002,2))?.midi,60)}});
+test('calibration rejects occasional spikes and sensitivity never falls below background',()=>{assert.equal(noiseFloor([.0001,.00012,.0001,.5,.0001]),.0001);assert.ok(signalThreshold(.003,6)>.003);assert.ok(signalThreshold(.003,1)>signalThreshold(.003,6))});
+test('silence and random low noise are not piano notes; meter shows weak signals',()=>{assert.equal(detectPitch(new Float32Array(4096),48000,.00006),null);let seed=7;const data=Float32Array.from({length:4096},()=>{seed=(seed*16807)%2147483647;return(seed/2147483647-.5)*.002});assert.equal(detectPitch(data,48000,.00006),null);assert.ok(meter(.0007)>20);assert.equal(meter(0),0)});

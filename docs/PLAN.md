@@ -38,3 +38,11 @@ Fixed the legacy studio default from screen keys to microphone. Microphone permi
 Falling notes use a 3.2-second lookahead aligned to a gold strike line. Pitch and timing are both required: ±180 ms scores 100; up to ±380 ms scores 60. Unplayed targets expire as misses. Early/late/wrong input produces red plus text, correct input green plus text. One event can score a target only once. Levels unlock at 60% timed hits; 80/95% earn two/three stars. Best per-stage score persists in localStorage. No backing audio is played during listening, to avoid self-triggering.
 
 Validation includes generated PCM passing through the microphone hook/Analyser path, permission ordering and cleanup, timing/score boundaries, stage locks, game microphone gating and red/green feedback. These are synthetic and component tests, not validation on the family's physical keyboard/tablet.
+
+## Weak-input correction
+
+Removed the fixed 0.008 RMS floor from the shared game/tablet capture pipeline. The pitch estimator now accepts a caller-supplied minimum RMS; the gate uses the same calibrated threshold. On connection, 1.2 seconds of quiet input estimates the lower-quantile background floor, then applies a bounded signal-to-noise margin. A logarithmic level meter makes quiet input visible. Controls select the actual audio input, change sensitivity, and request browser automatic gain control (hardware support varies). A zero-gain destination keeps the audio graph processing on mobile without audible microphone feedback.
+
+Distinguishes no signal, weak signal, nonperiodic/unclear sound and clear pitch. An unclear or silent input when a target expires pauses the round without recording a failed attempt. Calibration needs silence; playing throughout calibration can cause an excessively high threshold and requires reconnecting/recalibrating.
+
+Regression coverage includes low-amplitude C4 (0.0002–0.002 peak), noise rejection, threshold bounds, and weak PCM through the capture hook. These are deterministic fixtures, not physical microphone or acoustic-piano validation. Automatic gain control is a browser request rather than a guaranteed hardware gain change.

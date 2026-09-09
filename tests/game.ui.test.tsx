@@ -8,6 +8,7 @@ import {
   cleanup,
 } from "@testing-library/react";
 const io = vi.hoisted(() => ({
+  quality: "clear",
   start: vi.fn(async () => true),
   stop: vi.fn(),
   note: null as null | ((m: number) => void),
@@ -21,7 +22,7 @@ vi.mock("../src/tablet/useMicrophone", () => ({
       start: io.start,
       stop: io.stop,
       active: true,
-      quality: "clear",
+      quality: io.quality,
       level: 40,
     };
   },
@@ -30,6 +31,7 @@ import { RhythmGame } from "../src/game/RhythmGame";
 beforeEach(() => {
   localStorage.clear();
   io.start.mockClear();
+  io.quality = "clear";
 });
 afterEach(() => {
   cleanup();
@@ -86,4 +88,28 @@ it("later stages remain locked without a passing score", () => {
   const stages = screen.getAllByRole("button", { name: /مرحله / });
   expect((stages[0] as HTMLButtonElement).disabled).toBe(false);
   expect((stages[1] as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("uncertain input pauses a round without recording failure", async () => {
+  let frame: FrameRequestCallback | undefined;
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((fn) => {
+    frame = fn;
+    return 1;
+  });
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  const save = vi.fn(),
+    props = { onExit: () => {}, onSave: save };
+  const { rerender } = render(<RhythmGame {...props} />);
+  await click("مرحله 1: دو را پیدا کن");
+  await note(60);
+  await click("شروع بازی با ساز من");
+  io.quality = "unclear";
+  rerender(<RhythmGame {...props} />);
+  now = 4000;
+  await act(async () => {
+    frame?.(now);
+  });
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.getByRole("status").textContent).toContain("بدون ثبت شکست");
 });

@@ -34,13 +34,16 @@ export function useMicrophone(
       throw new Error(
         "این مرورگر به میکروفون دسترسی ندارد. اپ را در Safari یا Chrome و با آدرس HTTPS باز کن.",
       );
-    const s = await navigator.mediaDevices.getUserMedia({
+    const permission = navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: false,
       },
     });
+    // Start audio within the same tap as the permission request (Safari activation).
+    const readyContext=audioContext().then(ctx=>({ctx,error:null}),error=>({ctx:null,error}));
+    const s=await permission;
     if (id !== generation.current) {
       s.getTracks().forEach((t) => t.stop());
       return false;
@@ -51,7 +54,9 @@ export function useMicrophone(
     );
     let ctx: AudioContext;
     try {
-      ctx = await audioContext();
+      const ready=await readyContext;
+      if(!ready.ctx)throw ready.error;
+      ctx=ready.ctx;
     } catch (e) {
       stop();
       throw e;

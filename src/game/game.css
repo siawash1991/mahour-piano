@@ -436,3 +436,71 @@
   box-shadow: inset 0 -5px 0 #d9a638;
 }
 .microphone-settings{background:#eef6ff;border:1px solid #cdddf0;border-radius:15px;padding:17px;margin:18px 0;text-align:right}.microphone-settings label{margin:16px 0;justify-content:space-between;flex-wrap:wrap}.microphone-settings input[type=range]{flex:1;max-width:240px;accent-color:#557ece}.microphone-settings select{max-width:300px}.microphone-settings small{display:block;line-height:1.8;color:#627897}.microphone-settings p{color:#365b88}
+.speed-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 18px auto;
+  padding: 12px 14px;
+  max-width: 460px;
+  background: #fff;
+  border: 1px solid #dce5f1;
+  border-radius: 20px;
+  color: #4a628c;
+}
+.speed-picker > span {
+  font-weight: 700;
+}
+.speed-picker button {
+  min-width: 62px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  border: 2px solid #c9d8f0;
+  background: #f4f8ff;
+  color: #47618f;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.speed-picker button.on {
+  background: #6788ec;
+  border-color: #3e5bb0;
+  color: #fff;
+}
+.speed-picker > small {
+  flex-basis: 100%;
+  color: #8599b4;
+}
+.world-heading {
+  margin: 34px auto 18px;
+  padding: 12px;
+  border-radius: 18px;
+  background: #e6eeff;
+
+  color: #3c548a;
+}
+.world-heading b {
+  display: block;
+  font-size: 1.15rem;
+}
+.world-heading small {
+  color: #7b8fb2;
+}
+.stage-square.next {
+  animation: stage-beckon 1.6s ease-in-out infinite;
+  box-shadow:
+    0 8px 0 #3e5bb0,
+    0 0 0 6px #ffdf6e88;
+}
+@keyframes stage-beckon {
+  50% {
+    transform: rotate(-4deg) scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-square.next {
+    animation: none;
+  }
+}

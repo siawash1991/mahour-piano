@@ -4,10 +4,11 @@ import {
   ArrowRight,
   Play,
   RotateCcw,
-  Volume2,
   Check,
   Lock,
   Pause,
+  Gauge,
+  Settings,
 } from "lucide-react";
 import { useMicrophone } from "../tablet/useMicrophone";
 import {
@@ -19,7 +20,19 @@ import {
 } from "../tablet/model";
 import { fa, noteName, western } from "../curriculum";
 import { FantasyIcon } from "../tablet/TabletStudio";
-import { stages, schedule, judge, stars } from "./engine";
+import {
+  stages,
+  worldList,
+  schedule,
+  judge,
+  stars,
+  tolerance,
+  speeds,
+  readSpeed,
+  saveSpeed,
+  lead,
+  type Stage,
+} from "./engine";
 import type { Attempt } from "../storage";
 import "./game.css";
 type RecordMap = Record<string, { score: number; stars: number }>;
@@ -40,6 +53,7 @@ function load(): RecordMap {
     return {};
   }
 }
+const percent = (s: number) => fa(Math.round(s * 100)) + "٪";
 export function RhythmGame({
   onExit,
   onSave,
@@ -53,9 +67,9 @@ export function RhythmGame({
     [selected, setSelected] = useState(0),
     [records, setRecords] = useState(load),
     [base, setBase] = useState(readBase),
-    [status, setStatus] = useState("شروع هر مرحله، میکروفون را فعال می‌کند."),
+    [speed, setSpeedState] = useState(readSpeed),
+    [status, setStatus] = useState("روی هر مرحله بزن؛ بازی خودش شروع می‌شود."),
     [heard, setHeard] = useState<number | null>(null),
-    [checking, setChecking] = useState(false),
     [time, setTime] = useState(0),
     [feedback, setFeedback] = useState(""),
     [flash, setFlash] = useState(""),
@@ -64,7 +78,7 @@ export function RhythmGame({
     [combo, setCombo] = useState(0),
     [resolved, setResolved] = useState<Set<number>>(new Set());
   const live = useRef(false),
-    checkRef = useRef(false),
+    listening = useRef(false),
     epoch = useRef(0),
     clock = useRef(0),
     start = useRef(0),
@@ -74,15 +88,18 @@ export function RhythmGame({
     streak = useRef(0),
     errors = useRef(0),
     flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
-    handler = useRef<(m: number) => void>(() => {});
-  const stage = stages[selected],
-    times = schedule(
-      stage.steps.map((s) => s.beats),
-      stage.bpm,
-    );
+    handler = useRef<(m: number) => void>(() => {}),
+    resume = useRef<HTMLButtonElement | null>(null);
+  /** The run in flight: fixed at the moment play starts, so a stale render cannot retime it. */
+  const run = useRef<{ stage: Stage; times: number[]; tol: number }>({
+    stage: stages[0],
+    times: [],
+    tol: 1,
+  });
+  const stage = stages[selected];
   const mic = useMicrophone(
     (m) => handler.current(m),
-    () => live.current || checkRef.current,
+    () => live.current || listening.current,
   );
   const signal = useRef(mic.quality);
   signal.current = mic.quality;
@@ -95,22 +112,26 @@ export function RhythmGame({
   const stop = () => {
     epoch.current++;
     live.current = false;
-    checkRef.current = false;
-    setChecking(false);
+    listening.current = false;
     cancelAnimationFrame(clock.current);
     mic.stop();
   };
+  const setSpeed = (n: number) => {
+    setSpeedState(n);
+    saveSpeed(n);
+  };
   const finish = () => {
+    const { stage: s } = run.current;
     live.current = false;
     mic.stop();
     cancelAnimationFrame(clock.current);
     setScreen("result");
-    const n = stars(hit.current, stage.steps.length);
+    const n = stars(hit.current, s.steps.length);
     const next = {
       ...records,
-      [stage.id]: {
-        score: Math.max(points.current, records[stage.id]?.score || 0),
-        stars: Math.max(n, records[stage.id]?.stars || 0),
+      [s.id]: {
+        score: Math.max(points.current, records[s.id]?.score || 0),
+        stars: Math.max(n, records[s.id]?.stars || 0),
       },
     };
     setRecords(next);
@@ -120,19 +141,20 @@ export function RhythmGame({
       setStatus("ذخیره‌سازی مرورگر بسته است؛ نتیجه فقط تا بستن صفحه می‌ماند.");
     }
     onSave({
-      id: stage.id,
+      id: s.id,
       at: new Date().toISOString(),
       correct: hit.current,
       wrong: errors.current,
-      accuracy: Math.round((hit.current / stage.steps.length) * 100),
+      accuracy: Math.round((hit.current / s.steps.length) * 100),
       seconds: Math.round((performance.now() - start.current) / 1000),
       source: "mic",
       partial: false,
       mode: "falling-notes",
-      rhythm: Math.round((hit.current / stage.steps.length) * 100),
+      rhythm: Math.round((hit.current / s.steps.length) * 100),
       baseMidi: base,
     });
   };
+  /** Turn the microphone on. Returns false when the browser or the parent said no. */
   const connect = async () => {
     stop();
     setHeard(null);
@@ -140,24 +162,27 @@ export function RhythmGame({
     setStatus("منتظر اجازهٔ میکروفون…");
     try {
       const ok = await mic.start();
-      if (!ok || token !== epoch.current) return;
-      checkRef.current = true;
-      setChecking(true);
-      setStatus(
-        "میکروفون روشن است. کلید شمارهٔ ۱ (دو) را بزن؛ سپس «شروع بازی» را بزن.",
-      );
+      if (!ok || token !== epoch.current) return false;
+      setStatus("میکروفون روشن است.");
+      return true;
     } catch (e) {
       setStatus(
         e instanceof DOMException && e.name === "NotAllowedError"
           ? "دسترسی میکروفون رد شده است. کنار آدرس سایت، اجازهٔ Microphone را روشن کن. اگر داخل مرورگر برنامه هستی، لینک را در Chrome یا Safari باز کن."
           : "میکروفون فعال نشد. سایت را در Chrome یا Safari با HTTPS باز کن و دستگاه ورودی را بررسی کن.",
       );
+      return false;
     }
   };
-  const begin = () => {
-    if (!mic.active || mic.calibrating) return;
-    checkRef.current = false;
-    setChecking(false);
+  const begin = (index = selected) => {
+    const s = stages[index];
+    const tol = tolerance(speed);
+    const times = schedule(
+      s.steps.map((step) => step.beats),
+      s.bpm * speed,
+    );
+    run.current = { stage: s, times, tol };
+    listening.current = false;
     done.current = new Set();
     hit.current = 0;
     points.current = 0;
@@ -177,8 +202,10 @@ export function RhythmGame({
       if (!live.current) return;
       const elapsed = performance.now() - start.current;
       setTime(elapsed);
+      const late = elapsed > lead + 200;
       if (
-        times.some((at, i) => elapsed > at + 380 && !done.current.has(i)) &&
+        late &&
+        times.some((at, i) => elapsed > at + 380 * tol && !done.current.has(i)) &&
         signal.current !== "clear"
       ) {
         stop();
@@ -190,7 +217,7 @@ export function RhythmGame({
         return;
       }
       times.forEach((at, i) => {
-        if (elapsed > at + 380 && !done.current.has(i)) {
+        if (elapsed > at + 380 * tol && !done.current.has(i)) {
           done.current.add(i);
           errors.current++;
           streak.current = 0;
@@ -212,13 +239,11 @@ export function RhythmGame({
   };
   handler.current = (m) => {
     setHeard(m);
-    if (checkRef.current) {
+    if (listening.current) {
       if (validBase(m)) {
         setBase(m);
         saveBase(m);
-        setStatus(
-          `صدایت را می‌شنوم! کلید ۱ = ${western(m)}. آمادهٔ بازی هستی.`,
-        );
+        setStatus(`صدایت را می‌شنوم! کلید ۱ = ${western(m)}.`);
       } else
         setStatus(
           `${noteName(m)} شنیدم. برای تنظیم شماره‌ها، کلید «دو» را بزن.`,
@@ -226,6 +251,7 @@ export function RhythmGame({
       return;
     }
     if (!live.current) return;
+    const { stage: s, times, tol } = run.current;
     const elapsed = performance.now() - start.current;
     let closest = -1;
     times.forEach((at, i) => {
@@ -238,9 +264,10 @@ export function RhythmGame({
     });
     if (closest < 0) return;
     const result = judge(
-      transpose(stage.steps[closest].midi, base),
+      transpose(s.steps[closest].midi, base),
       m,
       elapsed - times[closest],
+      tol,
     );
     if (result === "perfect" || result === "good") {
       done.current.add(closest);
@@ -259,7 +286,7 @@ export function RhythmGame({
       pulse(
         false,
         result === "wrong"
-          ? `کلید ${fa(keyFor(stage.steps[closest].midi))} را بزن`
+          ? `کلید ${fa(keyFor(s.steps[closest].midi))} را بزن`
           : result === "early"
             ? "کمی زود بود؛ صبر کن به خط برسد"
             : "دیر شد؛ شمارهٔ بعدی را دنبال کن",
@@ -271,7 +298,7 @@ export function RhythmGame({
       if (document.hidden) {
         stop();
         setScreen((s) => (s === "play" ? "ready" : s));
-        setStatus("تمرین متوقف شد؛ برای ادامه میکروفون را دوباره روشن کن.");
+        setStatus("تمرین متوقف شد؛ برای ادامه دوباره «شروع» را بزن.");
       }
     };
     document.addEventListener("visibilitychange", hide);
@@ -292,13 +319,41 @@ export function RhythmGame({
       );
     }
   }, [mic.active, screen]);
+  const unlocked = (i: number) =>
+    i === 0 || (records[stages[i - 1].id]?.stars ?? 0) >= 1;
+  const next = stages.findIndex((s, i) => unlocked(i) && !records[s.id]?.stars);
+  useEffect(() => {
+    // Only jump into the map once there is progress to jump to; a fresh child starts at the top.
+    if (screen === "map" && next > 0)
+      resume.current?.scrollIntoView?.({ block: "center" });
+  }, [screen, next]);
+  /** One tap on a stage: microphone on, then straight into the falling notes. */
   const choose = async (i: number) => {
     stop();
     setSelected(i);
     setScreen("ready");
     setHeard(null);
-    await connect();
+    if (await connect()) begin(i);
   };
+  const speedPicker = (
+    <div className="speed-picker" role="group" aria-label="سرعت تمرین">
+      <Gauge size={18} />
+      <span>سرعت</span>
+      {speeds.map((s) => (
+        <button
+          key={s}
+          className={s === speed ? "on" : ""}
+          aria-pressed={s === speed}
+          onClick={() => setSpeed(s)}
+        >
+          {percent(s)}
+        </button>
+      ))}
+      <small>
+        {speed === 1 ? "سرعت واقعی آهنگ" : "تمرین آرام؛ فرصت بیشتر برای هر نت"}
+      </small>
+    </div>
+  );
   return (
     <div className={`rhythm-game ${flash}`}>
       <header className="game-header">
@@ -321,35 +376,54 @@ export function RhythmGame({
       {screen === "map" ? (
         <div className="world-map">
           <FantasyIcon name="coach" />
-          <h1>هر مربع، یک ماجرای موسیقی!</h1>
-          <p>روی ساز خودت بزن، ستاره بگیر و مرحلهٔ بعد را باز کن.</p>
+          <h1>صد مرحله تا نوازندگی</h1>
+          <p>روی مرحله بزن؛ میکروفون روشن می‌شود و بازی خودش شروع می‌شود.</p>
+          {speedPicker}
+          <button
+            className="text-button"
+            onClick={() => {
+              setScreen("ready");
+              setStatus("اینجا می‌توانی میکروفون را آزمایش و تنظیم کنی.");
+            }}
+          >
+            <Settings size={16} /> تنظیم میکروفون
+          </button>
           {stages.map((s, i) => {
-            const locked = i > 0 && !(records[stages[i - 1].id]?.stars >= 1),
-              r = records[s.id];
+            const locked = !unlocked(i),
+              r = records[s.id],
+              world = worldList[s.world];
             return (
-              <div
-                className="map-row"
-                style={{
-                  transform: `translateX(${[0, 65, 100, 65, 0, -65, -100, -65][i % 8]}px)`,
-                }}
-                key={s.id}
-              >
-                {i > 0 && <div className="map-connector" />}
-                <button
-                  disabled={locked}
-                  className={`stage-square ${r?.stars ? "won" : ""}`}
-                  onClick={() => void choose(i)}
-                  aria-label={`مرحله ${i + 1}: ${s.title}`}
+              <div key={s.id}>
+                {world.from === i && (
+                  <div className="world-heading">
+                    <b>{world.title}</b>
+                    <small>{world.hint}</small>
+                  </div>
+                )}
+                <div
+                  className="map-row"
+                  style={{
+                    transform: `translateX(${[0, 65, 100, 65, 0, -65, -100, -65][i % 8]}px)`,
+                  }}
                 >
-                  <span>
-                    {locked ? <Lock /> : r?.stars ? <Check /> : fa(i + 1)}
-                  </span>
-                  <small>{r?.stars ? "★".repeat(r.stars) : "♪"}</small>
-                </button>
-                <b>{s.title}</b>
-                <small>
-                  {fa(s.steps.length)} نت · {fa(s.bpm)} ضرب در دقیقه
-                </small>
+                  {i > 0 && <div className="map-connector" />}
+                  <button
+                    ref={i === next ? resume : undefined}
+                    disabled={locked}
+                    className={`stage-square ${r?.stars ? "won" : ""} ${i === next ? "next" : ""}`}
+                    onClick={() => void choose(i)}
+                    aria-label={`مرحله ${i + 1}: ${s.title}`}
+                  >
+                    <span>
+                      {locked ? <Lock /> : r?.stars ? <Check /> : fa(i + 1)}
+                    </span>
+                    <small>{r?.stars ? "★".repeat(r.stars) : "♪"}</small>
+                  </button>
+                  <b>{s.title}</b>
+                  <small>
+                    {fa(s.steps.length)} نت · {fa(s.bpm)} ضرب در دقیقه
+                  </small>
+                </div>
               </div>
             );
           })}
@@ -363,6 +437,7 @@ export function RhythmGame({
             شماره‌ها از بالا می‌آیند. وقتی به خط طلایی رسیدند، همان شماره را روی
             کیبوردت بزن.
           </p>
+          {speedPicker}
           <div className={"mic-status " + (mic.active ? "connected" : "")}>
             <Mic />
             {mic.active ? "میکروفون روشن؛ صدای واقعی ساز" : "میکروفون خاموش"}
@@ -433,7 +508,6 @@ export function RhythmGame({
           <label>
             کلید شمارهٔ ۱ شما{" "}
             <select
-              disabled={live.current}
               value={base}
               onChange={(e) => {
                 setBase(+e.target.value);
@@ -448,19 +522,23 @@ export function RhythmGame({
             </select>
           </label>
           <div className="game-buttons">
-            <button className="button outline" onClick={() => void connect()}>
+            <button
+              className="button outline"
+              onClick={async () => {
+                if (await connect()) {
+                  listening.current = true;
+                  setStatus("میکروفون روشن است؛ چند کلید بزن تا بشنوم.");
+                }
+              }}
+            >
               <Mic />
               فعال‌کردن / آزمایش میکروفون
             </button>
             <button
               className="button"
-              disabled={
-                !mic.active ||
-                mic.calibrating ||
-                heard === null ||
-                !validBase(heard)
-              }
-              onClick={begin}
+              onClick={async () => {
+                if (mic.active || (await connect())) begin(selected);
+              }}
             >
               <Play />
               شروع بازی با ساز من
@@ -481,6 +559,10 @@ export function RhythmGame({
               پشت سر هم <b>{fa(combo)} 🔥</b>
             </span>
             <span>
+              <Gauge size={18} />
+              {percent(speed)}
+            </span>
+            <span>
               <Mic size={18} />
               {mic.active ? "گوش می‌دهم" : "میکروفون قطع شد"}
             </span>
@@ -489,7 +571,7 @@ export function RhythmGame({
               onClick={() => {
                 stop();
                 setScreen("ready");
-                setStatus("برای شروع دوباره، میکروفون را فعال کن.");
+                setStatus("هر وقت آماده بودی، «شروع بازی» را بزن.");
               }}
             >
               <Pause />
@@ -507,15 +589,18 @@ export function RhythmGame({
                 <div key={i} />
               ))}
             </div>
-            {stage.steps.map((s, i) => {
-              const y = 100 - ((times[i] - time) / 3200) * 100;
+            {run.current.stage.steps.map((s, i) => {
+              const y = 100 - ((run.current.times[i] - time) / lead) * 100;
               if (y < -10 || y > 112 || resolved.has(i)) return null;
               return (
                 <div
                   key={i}
                   className={
                     "falling-note " +
-                    (Math.abs(times[i] - time) < 380 ? "near" : "")
+                    (Math.abs(run.current.times[i] - time) <
+                    380 * run.current.tol
+                      ? "near"
+                      : "")
                   }
                   style={{
                     left: `${(keyFor(s.midi) - 1) * 12.5}%`,
@@ -529,9 +614,9 @@ export function RhythmGame({
             <div className="hit-line">
               <span>همین‌جا بزن</span>
             </div>
-            {time < 2000 && (
+            {time < lead - 1200 && (
               <div className="countdown">
-                {fa(Math.ceil((3000 - time) / 1000))}
+                {fa(Math.ceil((lead - 200 - time) / 1000))}
               </div>
             )}
           </div>
@@ -570,8 +655,16 @@ export function RhythmGame({
           </div>
           <strong>{fa(score)} امتیاز</strong>
           <p>
-            {fa(hits)} نت درست و به‌موقع از {fa(stage.steps.length)}
+            {fa(hits)} نت درست و به‌موقع از {fa(stage.steps.length)} · سرعت{" "}
+            {percent(speed)}
           </p>
+          {speed < 1 && stars(hits, stage.steps.length) >= 2 && (
+            <p>عالی بود! حالا سرعت را یک پله بالا ببر و دوباره بزن.</p>
+          )}
+          {speed > 0.5 && stars(hits, stage.steps.length) === 0 && (
+            <p>سرعت را کمتر کن و همین مرحله را آرام‌تر تمرین کن.</p>
+          )}
+          {speedPicker}
           <p>برای بازشدن مرحلهٔ بعد، حداقل ۶۰٪ نت‌ها را درست و به‌موقع بزن.</p>
           <div className="game-buttons">
             <button

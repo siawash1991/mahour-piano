@@ -11,13 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useMicrophone } from "../tablet/useMicrophone";
-import {
-  readBase,
-  saveBase,
-  validBase,
-  keyFor,
-  transpose,
-} from "../tablet/model";
+import { readBase, saveBase, validBase, transpose } from "../tablet/model";
 import { fa, noteName, western } from "../curriculum";
 import { FantasyIcon } from "../tablet/TabletStudio";
 import {
@@ -31,7 +25,10 @@ import {
   readSpeed,
   saveSpeed,
   lead,
+  board,
+  keyLabel,
   type Stage,
+  type Key,
 } from "./engine";
 import type { Attempt } from "../storage";
 import "./game.css";
@@ -87,15 +84,17 @@ export function RhythmGame({
     points = useRef(0),
     streak = useRef(0),
     errors = useRef(0),
+    clear = useRef(false),
     flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     handler = useRef<(m: number) => void>(() => {}),
     resume = useRef<HTMLButtonElement | null>(null);
   /** The run in flight: fixed at the moment play starts, so a stale render cannot retime it. */
-  const run = useRef<{ stage: Stage; times: number[]; tol: number }>({
-    stage: stages[0],
-    times: [],
-    tol: 1,
-  });
+  const run = useRef<{
+    stage: Stage;
+    times: number[];
+    tol: number;
+    keys: Key[];
+  }>({ stage: stages[0], times: [], tol: 1, keys: board(stages[0].steps) });
   const stage = stages[selected];
   const mic = useMicrophone(
     (m) => handler.current(m),
@@ -181,7 +180,8 @@ export function RhythmGame({
       s.steps.map((step) => step.beats),
       s.bpm * speed,
     );
-    run.current = { stage: s, times, tol };
+    run.current = { stage: s, times, tol, keys: board(s.steps) };
+    clear.current = false;
     listening.current = false;
     done.current = new Set();
     hit.current = 0;
@@ -198,24 +198,12 @@ export function RhythmGame({
     start.current = performance.now();
     live.current = true;
     setScreen("play");
+    const deaf = Math.min(3, times.length);
     const frame = () => {
       if (!live.current) return;
       const elapsed = performance.now() - start.current;
       setTime(elapsed);
-      const late = elapsed > lead + 200;
-      if (
-        late &&
-        times.some((at, i) => elapsed > at + 380 * tol && !done.current.has(i)) &&
-        signal.current !== "clear"
-      ) {
-        stop();
-        setScreen("ready");
-        setHeard(null);
-        setStatus(
-          "صدای نت واضح نرسید؛ بازی بدون ثبت شکست متوقف شد. ورودی و حساسیت را بررسی کن و دوباره شروع کن.",
-        );
-        return;
-      }
+      if (signal.current === "clear") clear.current = true;
       times.forEach((at, i) => {
         if (elapsed > at + 380 * tol && !done.current.has(i)) {
           done.current.add(i);
@@ -226,6 +214,17 @@ export function RhythmGame({
           pulse(false, "این نت جا ماند؛ بعدی را بگیر!");
         }
       });
+      // Bail out only for an input that has never once produced a clear note — silence between
+      // notes is normal, and a child who hesitates deserves a missed note, not a cancelled stage.
+      if (!clear.current && done.current.size >= deaf) {
+        stop();
+        setScreen("ready");
+        setHeard(null);
+        setStatus(
+          "هیچ صدای واضحی از ساز نرسید؛ بازی بدون ثبت شکست متوقف شد. ورودی و حساسیت را بررسی کن و دوباره شروع کن.",
+        );
+        return;
+      }
       if (
         done.current.size === times.length &&
         elapsed > times[times.length - 1] + 500
@@ -239,6 +238,7 @@ export function RhythmGame({
   };
   handler.current = (m) => {
     setHeard(m);
+    clear.current = true;
     if (listening.current) {
       if (validBase(m)) {
         setBase(m);
@@ -253,6 +253,13 @@ export function RhythmGame({
     if (!live.current) return;
     const { stage: s, times, tol } = run.current;
     const elapsed = performance.now() - start.current;
+    // The count-in is free warm-up: notes played before the first one is even catchable are
+    // neither judged nor counted, and the gate is re-armed so the real attempt still lands.
+    if (elapsed < times[0] - 380 * tol) {
+      mic.rearm();
+      setFeedback("صبر کن تا شماره به خط طلایی برسد");
+      return;
+    }
     let closest = -1;
     times.forEach((at, i) => {
       if (
@@ -263,8 +270,23 @@ export function RhythmGame({
         closest = i;
     });
     if (closest < 0) return;
+    let key = base;
+    const off = m - transpose(s.steps[closest].midi, key);
+    // The very first note of a stage also settles which octave the child's keyboard sits in:
+    // the right note in the wrong octave re-bases the game instead of being marked wrong.
+    if (
+      hit.current === 0 &&
+      errors.current === 0 &&
+      off !== 0 &&
+      off % 12 === 0 &&
+      validBase(base + off)
+    ) {
+      key = base + off;
+      setBase(key);
+      saveBase(key);
+    }
     const result = judge(
-      transpose(s.steps[closest].midi, base),
+      transpose(s.steps[closest].midi, key),
       m,
       elapsed - times[closest],
       tol,
@@ -286,7 +308,7 @@ export function RhythmGame({
       pulse(
         false,
         result === "wrong"
-          ? `کلید ${fa(keyFor(s.steps[closest].midi))} را بزن`
+          ? `${noteName(m)} شنیدم؛ کلید ${keyLabel(s.steps[closest].midi)} را بزن`
           : result === "early"
             ? "کمی زود بود؛ صبر کن به خط برسد"
             : "دیر شد؛ شمارهٔ بعدی را دنبال کن",
@@ -585,29 +607,32 @@ export function RhythmGame({
           </div>
           <div className="note-highway" dir="ltr">
             <div className="lanes">
-              {Array.from({ length: 8 }, (_, i) => (
-                <div key={i} />
+              {run.current.keys.map((k) => (
+                <div
+                  key={k.midi}
+                  className={k.white ? "" : "black"}
+                  style={{ left: `${k.left}%`, width: `${k.width}%` }}
+                />
               ))}
             </div>
             {run.current.stage.steps.map((s, i) => {
               const y = 100 - ((run.current.times[i] - time) / lead) * 100;
               if (y < -10 || y > 112 || resolved.has(i)) return null;
+              const k = run.current.keys.find((x) => x.midi === s.midi)!;
               return (
                 <div
                   key={i}
                   className={
                     "falling-note " +
+                    (k.white ? "" : "black ") +
                     (Math.abs(run.current.times[i] - time) <
                     380 * run.current.tol
                       ? "near"
                       : "")
                   }
-                  style={{
-                    left: `${(keyFor(s.midi) - 1) * 12.5}%`,
-                    top: `${y}%`,
-                  }}
+                  style={{ left: `${k.left}%`, width: `${k.width}%`, top: `${y}%` }}
                 >
-                  {fa(keyFor(s.midi))}
+                  {keyLabel(s.midi)}
                 </div>
               );
             })}
@@ -621,18 +646,16 @@ export function RhythmGame({
             )}
           </div>
           <div className="game-piano" dir="ltr">
-            {Array.from({ length: 8 }, (_, i) => (
+            {run.current.keys.map((k) => (
               <div
+                key={k.midi}
                 className={
-                  heard !== null &&
-                  heard === transpose([60, 62, 64, 65, 67, 69, 71, 72][i], base)
-                    ? "heard"
-                    : ""
+                  (k.white ? "" : "black ") +
+                  (heard === transpose(k.midi, base) ? "heard" : "")
                 }
-                key={i}
+                style={{ left: `${k.left}%`, width: `${k.width}%` }}
               >
-                {fa(i + 1)}
-                {[0, 1, 3, 4, 5].includes(i) && <i />}
+                {k.white && keyLabel(k.midi)}
               </div>
             ))}
           </div>

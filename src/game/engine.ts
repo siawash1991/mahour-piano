@@ -1,6 +1,36 @@
 import { songs, type Step } from "../curriculum.ts";
-/** The falling-note highway has eight lanes: the white keys from middle C to the C above. */
-export const lane = [60, 62, 64, 65, 67, 69, 71, 72];
+/** The white keys from middle C up; drills are written against the first eight. */
+export const lane = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79];
+const WHITE = [0, 2, 4, 5, 7, 9, 11];
+export const isWhite = (m: number) => WHITE.includes(((m % 12) + 12) % 12);
+/**
+ * White keys carry the sticker number the child has on the real keyboard — 1 is middle C —
+ * and a black key borrows the number of the white below it plus a sharp.
+ */
+export function keyLabel(m: number): string {
+  if (!isWhite(m)) return keyLabel(m - 1) + "♯";
+  let n = 0;
+  for (let x = 60; x <= m; x++) if (isWhite(x)) n++;
+  return n.toLocaleString("fa-IR");
+}
+export type Key = { midi: number; white: boolean; left: number; width: number };
+/**
+ * The strip of piano keys a stage needs, always starting at middle C and never narrower than
+ * one octave, laid out in percentages the way a real keyboard looks from above.
+ */
+export function board(steps: { midi: number }[]): Key[] {
+  let top = Math.max(72, ...steps.map((s) => s.midi));
+  while (!isWhite(top)) top++;
+  const keys: number[] = [];
+  for (let m = 60; m <= top; m++) keys.push(m);
+  const unit = 100 / keys.filter(isWhite).length;
+  let w = 0;
+  return keys.map((midi) =>
+    isWhite(midi)
+      ? { midi, white: true, left: w++ * unit, width: unit }
+      : { midi, white: false, left: w * unit - unit * 0.3, width: unit * 0.6 },
+  );
+}
 const value: Record<string, number> = { e: 0.5, q: 1, h: 2, w: 4 };
 /** "1231" plus an optional rhythm string ("eeqh") reads as one short phrase. */
 const phrase = (keys: string, rhythm = "q".repeat(keys.length)): Step[] =>
@@ -72,8 +102,8 @@ const worlds: World[] = [
       ["132435421"],
     ],
   },
-  { title: "نان‌های داغ", hint: "اولین آهنگ واقعی‌ات", bpm: 60, song: "hot-cross", size: 3 },
-  { title: "مری و برهٔ کوچولو", hint: "یک ملودی آشنا، تکه‌تکه", bpm: 62, song: "mary", size: 4 },
+  { title: "نان‌های داغ", hint: "اولین آهنگ واقعی‌ات", bpm: 60, song: "hot-cross", size: 4 },
+  { title: "مری و برهٔ کوچولو", hint: "یک ملودی آشنا، تکه‌تکه", bpm: 62, song: "mary", size: 6 },
   {
     title: "تا هشت بشمار",
     hint: "حالا تا کلید ۸ می‌رویم",
@@ -89,22 +119,27 @@ const worlds: World[] = [
       ["1234567887654321"],
     ],
   },
-  { title: "چشمک بزن، ستاره", hint: "آهنگ کامل در شش تکه", bpm: 66, song: "twinkle", size: 6 },
-  { title: "سرود شادی", hint: "تم بتهوون", bpm: 66, song: "ode", size: 5 },
-  { title: "برادر ژاک", hint: "نت‌های سریع‌تر", bpm: 68, song: "frere", size: 4 },
-  { title: "زنگوله‌ها", hint: "ترجیع‌بند شاد", bpm: 70, song: "jingle", size: 5 },
+  { title: "چشمک بزن، ستاره", hint: "آهنگ کامل در شش تکه", bpm: 66, song: "twinkle", size: 8 },
+  { title: "سرود شادی", hint: "تم بتهوون", bpm: 66, song: "ode", size: 6 },
+  { title: "برادر ژاک", hint: "نت‌های سریع‌تر", bpm: 68, song: "frere", size: 8 },
+  { title: "زنگوله‌ها", hint: "ترجیع‌بند شاد", bpm: 70, song: "jingle", size: 6 },
   {
     title: "ریتم‌های تازه",
     hint: "نت‌های کوتاه و بلند کنار هم",
     bpm: 66,
     drills: [
       ["112233", "eeeeqq"],
-      ["123321", "eeeeqq"],
       ["12345", "eeeeh"],
       ["1234554321", "eeeeqeeeeh"],
-      ["12312345", "eeqeeqhh"],
       ["123456788", "eeeeeeeqh"],
     ],
+  },
+  {
+    title: "تولدت مبارک",
+    hint: "اولین آهنگ با کلیدهای بالاتر از ۸",
+    bpm: 68,
+    song: "birthday",
+    size: 6,
   },
   {
     title: "تمرین استادی",
@@ -112,12 +147,17 @@ const worlds: World[] = [
     bpm: 76,
     drills: [
       ["13531357", "eeeeeeeh"],
-      ["86428642", "eeeeeeeh"],
       ["12345678", "eeeeeeeh"],
-      ["87654321", "eeeeeeeh"],
       ["1122334455667788", "eeeeeeeeeeeeeeeh"],
       ["1234567887654321", "eeeeeeeeeeeeeeeh"],
     ],
+  },
+  {
+    title: "برای الیزه",
+    hint: "اولین آهنگ با کلیدهای سیاه",
+    bpm: 56,
+    song: "fur-elise",
+    size: 4,
   },
   {
     title: "کنسرت بزرگ",
@@ -126,7 +166,16 @@ const worlds: World[] = [
     full: true,
   },
 ];
-const concert = ["hot-cross", "mary", "twinkle", "ode", "frere", "jingle"];
+const concert = [
+  "hot-cross",
+  "mary",
+  "twinkle",
+  "ode",
+  "frere",
+  "jingle",
+  "birthday",
+  "fur-elise",
+];
 export const stages: Stage[] = worlds.flatMap((w, wi) => {
   const head = { world: wi, worldTitle: w.title };
   if (w.drills)

@@ -6,7 +6,7 @@ A Persian / RTL piano practice web app for a seven-year-old beginner, with a pro
 
 ## Rhythm game (default entry)
 
-Select the first square on the stage map. Every stage activates the microphone and displays its live level and detected pitch. Play the labeled C key once to verify input; only then does the game start button enable. Numbers fall toward the gold line: play the matching physical key when they arrive. Correct timed notes turn the surface green; wrong, early, late or missed notes turn it red. Earn at least 60% timed hits to unlock the next stage. Best scores and stars persist locally. Browser permission may already be granted; the app cannot force a new browser prompt.
+Select a square on the stage map: the microphone turns on and the stage starts, with a three-second count-in. Anything played during the count-in is free warm-up and is not judged. Numbers fall toward the gold line: play the matching physical key when they arrive. A practice-speed control (50/65/80/100%) stretches the schedule and widens the timing window by the same factor, so slow practice is genuinely more forgiving. The first note of a stage also settles the octave: the right note played an octave off re-bases the keyboard instead of counting as wrong. Correct timed notes turn the surface green; wrong, early, late or missed notes turn it red. Earn at least 60% timed hits to unlock the next stage. Best scores and stars persist locally. Browser permission may already be granted; the app cannot force a new browser prompt.
 
 42 automated tests cover DSP, permission ordering, input processing, timing, progression and UI. Physical keyboard and tablet behavior still need device verification.
 
@@ -20,7 +20,8 @@ See [custom generated assets and exact prompts](docs/GENERATED_ASSETS.md).
 
 ## Features
 
-- Six stages, 22 guided exercises and eight independently entered educational melody arrangements.
+- One hundred game stages across fourteen worlds, from two-note drills to whole pieces at real tempo; each song is learned as short parts, then halves, then the whole. The falling-note keyboard starts at middle C and widens to whatever a stage needs, including black keys.
+- Six studio levels, 22 guided exercises and eight independently entered educational melody arrangements.
 - Temporary key numbers → solfège names → treble/bass notation. Key numbers and finger numbers are explicitly distinguished.
 - Synthesized demonstrations, section practice, adjustable tempo, metronome and forgiving note-by-note progression.
 - Web Audio microphone input with YIN monophonic pitch detection. Silence gating, confidence threshold, stable frames and repeat-note gating.

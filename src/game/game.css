@@ -235,13 +235,19 @@
   display: flex;
 }
 .lanes > div {
-  flex: 1;
+  position: absolute;
+  top: 0;
+  bottom: 0;
   border-right: 1px solid #ffffff1b;
   background: linear-gradient(transparent, #ffffff09);
 }
+.lanes > div.black {
+  background: #16294a99;
+  border-radius: 0 0 6px 6px;
+  border: 0;
+}
 .falling-note {
   position: absolute;
-  width: 12.5%;
   height: 65px;
   padding: 0 5px;
   display: flex;
@@ -252,9 +258,14 @@
   border-radius: 16px;
   color: #fff;
   box-shadow: inset 0 -5px 0 #6388d7;
-  font-size: 2rem;
+  font-size: clamp(0.95rem, 3.4vw, 2rem);
   font-weight: 800;
   transform: translateY(-100%);
+}
+.falling-note.black {
+  background: #ffb46b;
+  box-shadow: inset 0 -5px 0 #d98536;
+  z-index: 2;
 }
 .hit-line {
   position: absolute;
@@ -286,42 +297,41 @@
   font-weight: 800;
 }
 .game-piano {
-  display: flex;
+  position: relative;
   max-width: 780px;
   margin: auto;
   height: 105px;
   background: #294366;
-  padding: 0 6px 8px;
-  gap: 3px;
   border-radius: 0 0 15px 15px;
+  overflow: hidden;
 }
 .game-piano > div {
-  flex: 1;
-  position: relative;
+  position: absolute;
+  top: 0;
+  bottom: 0;
   background: #fffcf2;
-  border-bottom: 5px solid #cdd4de;
+  border: 1px solid #cdd4de;
+  border-bottom-width: 5px;
   border-radius: 0 0 7px 7px;
   display: flex;
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 10px;
-  font-size: 1.5rem;
+  font-size: clamp(0.8rem, 2.6vw, 1.5rem);
   color: #6981a8;
   font-weight: 800;
+}
+.game-piano > div.black {
+  bottom: 38%;
+  background: #33445e;
+  border-color: #1d2b40;
+  z-index: 2;
 }
 .game-piano > div.heard {
   background: #b5e4fd;
 }
-.game-piano i {
-  position: absolute;
-  top: 0;
-  right: -27%;
-  width: 52%;
-  height: 54%;
-  background: #203b59;
-  border-bottom: 5px solid #102940;
-  border-radius: 0 0 5px 5px;
-  z-index: 2;
+.game-piano > div.black.heard {
+  background: #3f88ad;
 }
 .game-caption {
   text-align: center;

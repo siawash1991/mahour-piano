@@ -11,6 +11,7 @@ const io = vi.hoisted(() => ({
   quality: "clear",
   start: vi.fn(async () => true),
   stop: vi.fn(),
+  rearm: vi.fn(),
   note: null as null | ((m: number) => void),
   enabled: null as null | (() => boolean),
 }));
@@ -21,6 +22,7 @@ vi.mock("../src/tablet/useMicrophone", () => ({
     return {
       start: io.start,
       stop: io.stop,
+      rearm: io.rearm,
       active: true,
       quality: io.quality,
       level: 40,
@@ -32,6 +34,7 @@ import { stages, schedule, readSpeed } from "../src/game/engine";
 beforeEach(() => {
   localStorage.clear();
   io.start.mockClear();
+  io.rearm.mockClear();
   io.quality = "clear";
 });
 afterEach(() => {
@@ -119,12 +122,17 @@ it("later stages remain locked without a passing score", () => {
   expect((list[1] as HTMLButtonElement).disabled).toBe(true);
 });
 
-it("uncertain input pauses a round without recording failure", async () => {
+function frames() {
   let frame: FrameRequestCallback | undefined;
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((fn) => {
     frame = fn;
     return 1;
   });
+  return (now: number) => act(async () => void frame?.(now));
+}
+
+it("an input that never produces a clear note pauses the round without recording failure", async () => {
+  const tick = frames();
   let now = 0;
   vi.spyOn(performance, "now").mockImplementation(() => now);
   const save = vi.fn(),
@@ -133,10 +141,69 @@ it("uncertain input pauses a round without recording failure", async () => {
   await click("مرحله 1: سلام دو، رِ، می ۱");
   io.quality = "unclear";
   rerender(<RhythmGame {...props} />);
-  now = firstBeat(0, readSpeed()) + 2000;
-  await act(async () => {
-    frame?.(now);
-  });
+  now = 60000; // long past both notes of stage one
+  await tick(now);
   expect(save).not.toHaveBeenCalled();
   expect(screen.getByRole("status").textContent).toContain("بدون ثبت شکست");
+});
+
+it("a quiet room between notes is a missed note, not a cancelled stage", async () => {
+  const tick = frames();
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  const save = vi.fn();
+  render(<RhythmGame onExit={() => {}} onSave={save} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  // The child lands the first note, then hesitates; the microphone reads silence, as it should.
+  now = firstBeat(0, readSpeed());
+  await note(60);
+  io.quality = "quiet";
+  now = 60000;
+  await tick(now);
+  expect(screen.queryByText("هیچ صدای واضحی از ساز نرسید")).toBe(null);
+  // The stage runs to its end and the attempt is recorded rather than thrown away.
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(save.mock.calls[0][0].correct).toBe(1);
+});
+
+it("a note played during the count-in costs nothing and re-arms the gate for the real attempt", async () => {
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  const { container } = render(
+    <RhythmGame onExit={() => {}} onSave={() => {}} />,
+  );
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  now = 500; // still counting in
+  await note(60);
+  expect(container.querySelector(".rhythm-game.error")).toBe(null);
+  // Without the re-arm the microphone would swallow the identical note struck on the beat.
+  expect(io.rearm).toHaveBeenCalled();
+  now = firstBeat(0, readSpeed());
+  await note(60);
+  expect(screen.getByText("۱۰۰")).toBeTruthy();
+});
+
+it("the right note in the wrong octave re-bases the keyboard instead of failing the child", async () => {
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  now = firstBeat(0, readSpeed());
+  await note(72); // stage 1 wants middle C; this keyboard's "key 1" is an octave up
+  expect(screen.getByText("۱۰۰")).toBeTruthy();
+  expect(localStorage.getItem("mahour-keyboard-base")).toBe("72");
+  // Only the first note re-bases; a genuinely wrong note afterwards is still wrong.
+  now = firstBeat(0, readSpeed()) + 100;
+  await note(62);
+  expect(screen.getByText("۱۰۰")).toBeTruthy();
+});
+
+it("a wrong note says what it heard so a parent can tell a mis-hit from a mis-heard key", async () => {
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  now = firstBeat(0, readSpeed());
+  await note(64);
+  expect(screen.getByRole("status").textContent).toContain("می شنیدم");
 });

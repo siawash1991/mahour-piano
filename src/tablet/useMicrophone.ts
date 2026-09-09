@@ -16,6 +16,7 @@ export function useMicrophone(
     generation = useRef(0),
     node = useRef<MediaStreamAudioSourceNode | null>(null),
     sink = useRef<GainNode | null>(null),
+    gate = useRef(new NoteGate()),
     params = useRef({ sensitivity: 2, deviceId: "", automatic: true });
   const [active, setActive] = useState(false),
     [level, setLevel] = useState(0),
@@ -111,8 +112,8 @@ export function useMicrophone(
       setActive(true);
       setCalibrating(true);
       const data = new Float32Array(4096),
-        gate = new NoteGate(),
         background: number[] = [];
+      gate.current.reset();
       let last = 0,
         first: number | null = null,
         noise = 0.0001,
@@ -156,20 +157,23 @@ export function useMicrophone(
                       : "صدای نت واضح دریافت می‌شود.",
             );
             if (!allowed.current()) {
-              if (rms < floor) gate.accept(null, rms, floor, 0.88);
+              if (rms < floor) gate.current.accept(null, rms, floor, 0.88);
             } else {
+              // A struck key rises above the decaying tail of the one before it. Measuring the
+              // rise against a slow-release peak — not against the single previous frame — is
+              // what lets the same note, played twice in a row, register twice.
               if (
                 p &&
-                rms > Math.max(floor * 2, envelope * 2.2) &&
-                now - lastAttack > 250
+                rms > Math.max(floor * 1.5, envelope * 1.4) &&
+                now - lastAttack > 110
               ) {
-                gate.reset();
+                gate.current.reset();
                 lastAttack = now;
               }
-              const m = gate.accept(p, rms, floor, 0.88);
+              const m = gate.current.accept(p, rms, floor, 0.88);
               if (m !== null) callback.current(m);
             }
-            envelope = rms;
+            envelope = Math.max(rms, envelope * 0.9);
           }
         }
         frame.current = requestAnimationFrame(read);
@@ -210,6 +214,8 @@ export function useMicrophone(
   return {
     start,
     stop,
+    /** Forget the last note heard, so an identical note struck next still counts. */
+    rearm: () => gate.current.reset(),
     active,
     level,
     quality,

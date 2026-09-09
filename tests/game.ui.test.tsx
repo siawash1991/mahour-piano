@@ -119,7 +119,7 @@ it("half speed stretches the schedule and still scores a note played that late",
 it("later stages remain locked without a passing score", () => {
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   const list = screen.getAllByRole("button", { name: /مرحله / });
-  expect(list.length).toBe(100);
+  expect(list.length).toBeGreaterThanOrEqual(100);
   expect((list[0] as HTMLButtonElement).disabled).toBe(false);
   expect((list[1] as HTMLButtonElement).disabled).toBe(true);
 });
@@ -260,4 +260,18 @@ it("a learned offset is applied to every note the stage asks for", async () => {
   now = firstBeat(0, readSpeed());
   await note(48); // middle C on this child's keyboard
   expect(screen.getByText("۱۰۰")).toBeTruthy();
+});
+
+it("a song opened from the library goes straight to its falling notes, unlocked", async () => {
+  render(
+    <RhythmGame
+      onExit={() => {}}
+      onSave={() => {}}
+      openStage="concert-fate"
+    />,
+  );
+  await act(async () => {});
+  // The concert stages sit at the very end of the map and are normally locked.
+  expect(io.start).toHaveBeenCalled();
+  expect(screen.getByText("همین‌جا بزن")).toBeTruthy();
 });

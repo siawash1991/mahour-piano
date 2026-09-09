@@ -20,8 +20,9 @@ See [custom generated assets and exact prompts](docs/GENERATED_ASSETS.md).
 
 ## Features
 
-- One hundred game stages across fourteen worlds, from two-note drills to whole pieces at real tempo; each song is learned as short parts, then halves, then the whole. The falling-note keyboard starts at middle C and widens to whatever a stage needs, including black keys.
-- Six studio levels, 22 guided exercises and eight independently entered educational melody arrangements.
+- Game stages across eighteen worlds, from two-note drills to whole pieces at real tempo; each song is learned as short parts, then halves, then the whole. The falling-note keyboard starts at middle C and widens to whatever a stage needs, including black keys.
+- Six studio levels, 22 guided exercises and twelve independently entered educational melody arrangements. Every library song also opens in the falling-note player.
+- Adding a melody is one entry in `src/curriculum.ts`: `song(id, level, title, subtitle, [midi...], [beats...], credit)`. Only public-domain or traditional music is included here; anything still in copyright is for you to add to your own copy.
 - Temporary key numbers → solfège names → treble/bass notation. Key numbers and finger numbers are explicitly distinguished.
 - Synthesized demonstrations, section practice, adjustable tempo, metronome and forgiving note-by-note progression.
 - Web Audio microphone input with YIN monophonic pitch detection. Silence gating, confidence threshold, stable frames and repeat-note gating.

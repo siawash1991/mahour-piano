@@ -61,9 +61,12 @@ const percent = (s: number) => fa(Math.round(s * 100)) + "٪";
 export function RhythmGame({
   onExit,
   onSave,
+  openStage,
 }: {
   onExit: () => void;
   onSave: (a: Attempt) => void;
+  /** A stage to jump straight into, from the song library. Ignores the usual unlock order. */
+  openStage?: string;
 }) {
   const [screen, setScreen] = useState<
       "map" | "tune" | "ready" | "play" | "result"
@@ -381,6 +384,14 @@ export function RhythmGame({
   const unlocked = (i: number) =>
     i === 0 || (records[stages[i - 1].id]?.stars ?? 0) >= 1;
   const next = stages.findIndex((s, i) => unlocked(i) && !records[s.id]?.stars);
+  const opened = useRef(false);
+  useEffect(() => {
+    if (openStage && !opened.current) {
+      opened.current = true;
+      const i = stages.findIndex((s) => s.id === openStage);
+      if (i >= 0) void choose(i);
+    }
+  }, [openStage]);
   useEffect(() => {
     // Only jump into the map once there is progress to jump to; a fresh child starts at the top.
     if (screen === "map" && next > 0)
@@ -437,7 +448,7 @@ export function RhythmGame({
       {screen === "map" ? (
         <div className="world-map">
           <FantasyIcon name="coach" />
-          <h1>صد مرحله تا نوازندگی</h1>
+          <h1>{fa(stages.length)} مرحله تا نوازندگی</h1>
           <p>روی مرحله بزن؛ میکروفون روشن می‌شود و بازی خودش شروع می‌شود.</p>
           {speedPicker}
           <button

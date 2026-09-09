@@ -32,9 +32,11 @@ test('the two hardest songs are reachable: high keys and black keys both appear'
   assert.ok(stages.some(s=>s.steps.some(x=>!isWhite(x.midi))),'no stage ever uses a black key');
   assert.ok(stages.some(s=>s.id==='concert-birthday')&&stages.some(s=>s.id==='concert-fur-elise'));
 });
-test('one hundred stages ramp up and difficulty never jumps',()=>{
-  assert.equal(stages.length,100);
-  assert.equal(worldList.length,14);
+test('the stage list ramps up and difficulty never jumps',()=>{
+  // The exact count moves as songs are added; what must hold is that the ramp stays intact.
+  assert.ok(stages.length >= 100, `only ${stages.length} stages`);
+  assert.equal(worldList.length, new Set(stages.map(s=>s.world)).size);
+  assert.deepEqual(worldList.map(w=>w.from), worldList.map(w=>stages.findIndex(s=>s.world===w.index)));
   for(const s of stages){
     assert.ok(s.steps.length>0,s.id);
   }

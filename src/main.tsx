@@ -1,27 +1,28 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  Piano,
-  BookOpen,
-  Music2,
-  ChartNoAxesCombined,
-  Settings2,
   ArrowLeft,
-  Play,
-  Pause,
-  Mic,
-  Volume2,
-  RotateCcw,
+  BookOpen,
+  ChartNoAxesCombined,
   Check,
-  Star,
-  Headphones,
   ChevronLeft,
+  ChevronsDown,
   Download,
-  Printer,
-  Keyboard,
-  Usb,
   Flag,
+  Headphones,
+  Keyboard,
+  Mic,
+  Music2,
+  Pause,
+  Piano,
+  Play,
+  Printer,
+  RotateCcw,
+  Settings2,
+  Star,
   Timer,
+  Usb,
+  Volume2,
   X,
 } from "lucide-react";
 import {
@@ -37,7 +38,13 @@ import {
   type Step,
 } from "./curriculum";
 import { audioContext, playNote, tick } from "./audio";
-import { harmonics, strike, strikeThreshold, type Comb } from "./pitch";
+import {
+  harmonics,
+  strike,
+  strikeThreshold,
+  ANALYSIS_WINDOW,
+  type Comb,
+} from "./pitch";
 import { readAttempts, saveAttempts, type Attempt } from "./storage";
 import "./style.css";
 import { Staff } from "./Staff";
@@ -56,6 +63,7 @@ type View =
 
 export function App() {
   const [view, setView] = useState<View>("game"),
+    [gameStage, setGameStage] = useState<string | undefined>(undefined),
     [lesson, setLesson] = useState<Lesson>(lessons[0]),
     [attempts, setAttempts] = useState(readAttempts),
     [notation, setNotation] = useState("number"),
@@ -148,8 +156,10 @@ export function App() {
     if (l.steps.some((s) => s.chord?.length)) setSource("midi");
     setView("practice");
   };
-  const navigate = (v: View) => {
+  const navigate = (v: View, stage?: string) => {
     stop();
+    // Only a song opened from the library targets a stage; every other route starts at the map.
+    setGameStage(stage);
     setView(v);
   };
   const finish = () => {
@@ -295,7 +305,7 @@ export function App() {
       stream.current = media;
       const ctx = await audioContext(),
         analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = ANALYSIS_WINDOW;
       ctx.createMediaStreamSource(media).connect(analyser);
       const data = new Float32Array(analyser.fftSize),
         silent: Comb = {
@@ -473,6 +483,7 @@ export function App() {
   if (view === "game")
     return (
       <RhythmGame
+        openStage={gameStage}
         onExit={() => navigate("home")}
         onSave={(a) =>
           setAttempts((prev) => {
@@ -535,7 +546,7 @@ export function App() {
             >
               {icon}
               {label}
-              {v === "songs" && <span className="badge">۸</span>}
+              {v === "songs" && <span className="badge">{fa(songs.length)}</span>}
             </button>
           ))}
         </nav>
@@ -595,7 +606,8 @@ export function App() {
                   <small>مخصوص کیبورد واقعی تو</small>
                   <b>بازی ریتم با کیبورد واقعی</b>
                   <span>
-                    ۱۰۰ مرحله از آسان تا آهنگ کامل؛ سرعت را خودت کم و زیاد کن.
+                    {fa(stages.length)} مرحله از آسان تا آهنگ کامل؛ سرعت را خودت کم و زیاد
+                    کن.
                   </span>
                 </span>
                 <span className="entry-cta">
@@ -813,6 +825,7 @@ export function App() {
                     i={i}
                     done={completed.has(s.id)}
                     onClick={() => open(s)}
+                    onFalling={() => navigate("game", "concert-" + s.id)}
                   />
                 ))}
               </div>
@@ -1473,13 +1486,16 @@ function SongCard({
   i,
   done,
   onClick,
+  onFalling,
 }: {
   lesson: Lesson;
   i: number;
   done: boolean;
   onClick: () => void;
+  /** Play this song in the game's falling-note view instead of the studio's notation. */
+  onFalling?: () => void;
 }) {
-  return (
+  const card = (
     <button className="song-card" onClick={onClick}>
       <div className={"song-art art-" + (i % 4)}>
         <FantasyIcon
@@ -1507,6 +1523,16 @@ function SongCard({
         <p>{lesson.subtitle}</p>
       </div>
     </button>
+  );
+  if (!onFalling) return card;
+  return (
+    <div className="song-card-wrap">
+      {card}
+      <button className="falling-entry" onClick={onFalling}>
+        <ChevronsDown size={16} />
+        با نت‌های افتان بزن
+      </button>
+    </div>
   );
 }
 const root = document.getElementById("root");

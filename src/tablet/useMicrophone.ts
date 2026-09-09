@@ -1,6 +1,12 @@
 import { useRef, useState, useEffect } from "react";
 import { audioContext } from "../audio";
-import { harmonics, strike, strikeThreshold, type Comb } from "../pitch";
+import {
+  harmonics,
+  strike,
+  strikeThreshold,
+  ANALYSIS_WINDOW,
+  type Comb,
+} from "../pitch";
 import { noiseFloor, signalThreshold, meter } from "./signal";
 export function useMicrophone(
   onNote: (midi: number) => void,
@@ -77,7 +83,7 @@ export function useMicrophone(
       }
       node.current = ctx.createMediaStreamSource(s);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = ANALYSIS_WINDOW;
       node.current.connect(analyser);
       // Keep the graph pulled on mobile browsers, without playing microphone audio back.
       sink.current = ctx.createGain();
@@ -110,7 +116,7 @@ export function useMicrophone(
       );
       setActive(true);
       setCalibrating(true);
-      const data = new Float32Array(2048),
+      const data = new Float32Array(ANALYSIS_WINDOW),
         background: number[] = [],
         quiet: Comb = {
           total: new Float32Array(32),
@@ -134,6 +140,11 @@ export function useMicrophone(
             background.push(rms);
             setDiagnostic("یک لحظه سکوت؛ صدای محیط را اندازه می‌گیرم.");
           } else {
+            // Keep re-measuring the room. Measuring once at the start meant an eager child who
+            // played during that second, or a door closing, set a floor too high to hear them
+            // for the rest of the stage — with no way back.
+            background.push(rms);
+            if (background.length > 90) background.shift();
             noise = noiseFloor(background);
             const floor = signalThreshold(noise, params.current.sensitivity);
             setThreshold(floor);

@@ -51,35 +51,58 @@ export function frequency(midi: number) {
 /** The notes the game and the studio can ask for: C3 up to G above the treble staff. */
 export const LOW_KEY = 48;
 export const HIGH_KEY = 79;
-const HARMONICS = 6;
+const HARMONICS = 5;
+/**
+ * Low notes need a longer look than high ones: a semitone near middle C is about 15Hz wide, so a
+ * short window cannot tell C from the keys either side of it, which is what made "do" the note
+ * the app kept missing. Giving every candidate the same number of cycles rather than the same
+ * number of samples evens the resolution out, and costs less than analysing everything long.
+ */
+const CYCLES = 32;
+const LONGEST = 4096;
+const windows = new Map<number, Int32Array>();
+function windowSizes(rate: number) {
+  let sizes = windows.get(rate);
+  if (!sizes) {
+    sizes = Int32Array.from({ length: HIGH_KEY - LOW_KEY + 1 }, (_, i) =>
+      Math.max(512, Math.min(LONGEST, Math.round((rate * CYCLES) / frequency(LOW_KEY + i)))),
+    );
+    windows.set(rate, sizes);
+  }
+  return sizes;
+}
+/** The buffer length the detector wants; shorter input still works, just with less resolution. */
+export const ANALYSIS_WINDOW = LONGEST;
 /**
  * Energy at one frequency. Goertzel costs one pass per frequency, which beats a whole FFT when
  * only the harmonics of the thirty-odd notes a child could be playing actually matter.
  */
-function goertzel(samples: Float32Array, rate: number, hz: number) {
+function goertzel(samples: Float32Array, rate: number, hz: number, n: number) {
   const c = 2 * Math.cos((2 * Math.PI * hz) / rate);
   let s1 = 0,
     s2 = 0;
-  for (let i = 0; i < samples.length; i++) {
+  for (let i = 0; i < n; i++) {
     const s = samples[i] + c * s1 - s2;
     s2 = s1;
     s1 = s;
   }
-  return Math.sqrt(Math.abs(s1 * s1 + s2 * s2 - c * s1 * s2)) / samples.length;
+  return Math.sqrt(Math.abs(s1 * s1 + s2 * s2 - c * s1 * s2)) / n;
 }
 export type Comb = { total: Float32Array; fundamental: Float32Array };
 /** How much energy sits on each candidate note's harmonic series, and on its bare fundamental. */
 export function harmonics(samples: Float32Array, rate: number): Comb {
   const n = HIGH_KEY - LOW_KEY + 1,
+    sizes = windowSizes(rate),
     total = new Float32Array(n),
     fundamental = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const f0 = frequency(LOW_KEY + i);
+    const f0 = frequency(LOW_KEY + i),
+      len = Math.min(sizes[i], samples.length);
     let sum = 0;
     for (let h = 1; h <= HARMONICS; h++) {
       const hz = f0 * h;
       if (hz * 2 >= rate) break;
-      const g = goertzel(samples, rate, hz);
+      const g = goertzel(samples, rate, hz, len);
       if (h === 1) fundamental[i] = g;
       sum += g / h;
     }

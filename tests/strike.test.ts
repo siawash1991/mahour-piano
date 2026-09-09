@@ -123,3 +123,53 @@ test("the old monophonic detector is why this was needed: it cannot hear through
   assert.ok(yin === null || yin.midi !== 60, "YIN was never going to answer this correctly");
   assert.equal(heard(room(tone(58, 0.15)), mix), 60);
 });
+
+/** A piano tone `cents` away from concert pitch — no home piano is exactly in tune. */
+function offTune(midi: number, cents: number, amp = 0.2, n = 4096) {
+  const f0 = frequency(midi) * 2 ** (cents / 1200),
+    out = new Float32Array(n);
+  for (let p = 1; p <= 14; p++) {
+    const f = p * f0 * Math.sqrt(1 + 0.0004 * p * p);
+    if (f * 2 >= RATE) break;
+    for (let i = 0; i < n; i++)
+      out[i] += (amp / p ** 1.3) * Math.sin((2 * Math.PI * f * i) / RATE + p);
+  }
+  return room(out);
+}
+test("a note is told apart from the keys either side of it, even out of tune and low down", () => {
+  // A semitone near middle C is only ~15Hz wide, so a window short enough for the high notes
+  // cannot resolve it. That is what made "do" the note the app kept missing.
+  let worst = 1,
+    worstAt = "";
+  for (const midi of [48, 50, 55, 58, 60, 62, 64, 67, 72, 76, 79])
+    for (const cents of [-35, -15, 0, 15, 35]) {
+      const comb = harmonics(offTune(midi, cents), RATE);
+      const rank = [...comb.total]
+        .map((v, i) => ({ midi: LOW_KEY + i, v, f: comb.fundamental[i] }))
+        .filter((r) => r.f >= r.v * 0.3)
+        .sort((a, b) => b.v - a.v);
+      assert.equal(rank[0].midi, midi, `heard ${rank[0].midi} for ${midi} at ${cents} cents`);
+      const margin = (rank[0].v - rank[1].v) / rank[0].v;
+      if (margin < worst) {
+        worst = margin;
+        worstAt = `${midi} at ${cents} cents`;
+      }
+    }
+  assert.ok(worst > 0.2, `narrowest win was only ${(worst * 100) | 0}% (${worstAt})`);
+});
+test("an out-of-tune piano still reports the note that was struck", () => {
+  for (const midi of [48, 60, 64, 72, 79])
+    for (const cents of [-35, -15, 15, 35]) {
+      const x = offTune(midi, cents);
+      assert.equal(
+        strike(
+          { total: new Float32Array(32), fundamental: new Float32Array(32) },
+          harmonics(x, RATE),
+          rms(x),
+          strikeThreshold(2),
+        ),
+        midi,
+        `${midi} at ${cents} cents`,
+      );
+    }
+});

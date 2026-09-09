@@ -1664,3 +1664,26 @@ th {
     color: black;
   }
 }
+.song-card-wrap {
+  display: flex;
+  flex-direction: column;
+}
+.song-card-wrap > .song-card {
+  flex: 1;
+}
+.falling-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 10px;
+  min-height: 44px;
+  width: 100%;
+  border-radius: 14px;
+  border: 2px solid #c9d8f0;
+  background: #f4f8ff;
+  color: #47618f;
+  font-weight: 700;
+  font-size: 0.85rem;
+}

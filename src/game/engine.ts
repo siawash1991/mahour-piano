@@ -106,6 +106,13 @@ const worlds: World[] = [
   { title: "نان‌های داغ", hint: "اولین آهنگ واقعی‌ات", bpm: 60, song: "hot-cross", size: 4 },
   { title: "مری و برهٔ کوچولو", hint: "یک ملودی آشنا، تکه‌تکه", bpm: 62, song: "mary", size: 6 },
   {
+    title: "وقتی قدیسان می‌آیند",
+    hint: "یک ملودی شاد برای رژه رفتن",
+    bpm: 64,
+    song: "saints",
+    size: 6,
+  },
+  {
     title: "تا هشت بشمار",
     hint: "حالا تا کلید ۸ می‌رویم",
     bpm: 58,
@@ -119,6 +126,13 @@ const worlds: World[] = [
       ["13578642"],
       ["1234567887654321"],
     ],
+  },
+  {
+    title: "طلوع",
+    hint: "سه نت، و یک صدای بزرگ",
+    bpm: 62,
+    song: "sunrise",
+    size: 4,
   },
   { title: "چشمک بزن، ستاره", hint: "آهنگ کامل در شش تکه", bpm: 66, song: "twinkle", size: 8 },
   { title: "سرود شادی", hint: "تم بتهوون", bpm: 66, song: "ode", size: 6 },
@@ -134,6 +148,20 @@ const worlds: World[] = [
       ["1234554321", "eeeeqeeeeh"],
       ["123456788", "eeeeeeeqh"],
     ],
+  },
+  {
+    title: "سرنوشت",
+    hint: "چهار نتِ معروف بتهوون، با یک کلید سیاه",
+    bpm: 64,
+    song: "fate",
+    size: 4,
+  },
+  {
+    title: "زنگ‌ها",
+    hint: "یک الگوی کوتاه که تندتر و تندتر می‌شود",
+    bpm: 68,
+    song: "bells",
+    size: 4,
   },
   {
     title: "تولدت مبارک",
@@ -170,10 +198,14 @@ const worlds: World[] = [
 const concert = [
   "hot-cross",
   "mary",
+  "saints",
+  "sunrise",
   "twinkle",
   "ode",
   "frere",
   "jingle",
+  "fate",
+  "bells",
   "birthday",
   "fur-elise",
 ];
@@ -210,22 +242,27 @@ export const stages: Stage[] = worlds.flatMap((w, wi) => {
       song: w.song,
     })),
     // Two halves bridge the short fragments and the whole piece, so nothing doubles overnight.
-    {
-      ...head,
-      id: `w${wi}-h0`,
-      title: `${w.title} · نیمهٔ اول`,
-      steps: all.slice(0, mid),
-      bpm: w.bpm + 2,
-      song: w.song,
-    },
-    {
-      ...head,
-      id: `w${wi}-h1`,
-      title: `${w.title} · نیمهٔ دوم`,
-      steps: all.slice(mid),
-      bpm: w.bpm + 2,
-      song: w.song,
-    },
+    // A song short enough to be only two or three fragments does not need the step.
+    ...(parts.length >= 4
+      ? [
+          {
+            ...head,
+            id: `w${wi}-h0`,
+            title: `${w.title} · نیمهٔ اول`,
+            steps: all.slice(0, mid),
+            bpm: w.bpm + 2,
+            song: w.song,
+          },
+          {
+            ...head,
+            id: `w${wi}-h1`,
+            title: `${w.title} · نیمهٔ دوم`,
+            steps: all.slice(mid),
+            bpm: w.bpm + 2,
+            song: w.song,
+          },
+        ]
+      : []),
     {
       ...head,
       id: `w${wi}-all`,

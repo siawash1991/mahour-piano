@@ -27,7 +27,9 @@ afterEach(cleanup);
 describe("practice flows", () => {
   it("records wrong notes, completes first lesson and persists report", async () => {
     render(<App />);
+    await click("استودیو");
     await click("بریم تمرین کنیم");
+    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
     await click("شروع تمرین");
     await key("D4");
     expect(screen.getByRole("status").textContent).toContain("رِ شنیدم");
@@ -47,7 +49,9 @@ describe("practice flows", () => {
   });
   it("partial practice does not mark the entire lesson complete", async () => {
     render(<App />);
+    await click("استودیو");
     await click("بریم تمرین کنیم");
+    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
     fireEvent.change(
       screen.getByRole("combobox", { name: "انتخاب بخش تمرین" }),
       { target: { value: "0" } },
@@ -62,7 +66,9 @@ describe("practice flows", () => {
   it("demo never adds progress, and stops on navigation", async () => {
     vi.useFakeTimers();
     render(<App />);
+    await click("استودیو");
     await click("بریم تمرین کنیم");
+    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
     await click("اول گوش بده");
     await act(async () => {
       vi.advanceTimersByTime(10000);
@@ -81,7 +87,9 @@ describe("practice flows", () => {
       },
     });
     render(<App />);
+    await click("استودیو");
     await click("بریم تمرین کنیم");
+    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
     fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
       target: { value: "mic" },
     });
@@ -103,6 +111,7 @@ describe("practice flows", () => {
       })),
     });
     render(<App />);
+    await click("استودیو");
     await click("مسیر یادگیری");
     await act(async () => {
       fireEvent.click(screen.getByText("با هم، در یک لحظه").closest("button")!);
@@ -126,7 +135,7 @@ describe("practice flows", () => {
       JSON.parse(localStorage.getItem("mahour-attempts")!)[0],
     ).toMatchObject({ source: "midi", correct: 4, accuracy: 100 });
   });
-  it("loads saved progress after remount", () => {
+  it("loads saved progress after remount", async () => {
     localStorage.setItem(
       "mahour-attempts",
       JSON.stringify([
@@ -145,6 +154,7 @@ describe("practice flows", () => {
       ]),
     );
     render(<App />);
+    await click("استودیو");
     expect(screen.getByText("۱ تمرین کامل")).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "سه دوست کنار هم" }),

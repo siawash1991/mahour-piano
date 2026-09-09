@@ -28,3 +28,13 @@ Delivered a dedicated eight-key beginner experience: three separate C-note attac
 The tablet flow deliberately starts with seven suitable exercises/songs using only the numbered white-key octave. It is not an automatic replacement for the advanced curriculum. It does not infer fingering, keybed length, or posture. A parent verifies the eight physical labels after calibration. Calibration is checked again when entering tablet mode, even though the last base is retained.
 
 Validation: 25 DSP/content/gating tests plus 10 component integration tests. New integration coverage includes C3 transposition, partial/full separation, pause safety and microphone permission denial. Physical keyboard and tablet hardware validation remains outstanding.
+
+## Rhythm game / microphone correction
+
+The default landing view is now a winding square-stage game map. Every stage selection calls getUserMedia; the start button is gated on microphone activation AND an actually detected C key. It displays the current signal meter and detected note. Existing browser grants may suppress a fresh permission dialog; the app does not claim it can force that dialog.
+
+Fixed the legacy studio default from screen keys to microphone. Microphone permission now precedes potentially suspended AudioContext initialization, including in the shared tablet/game hook. Each game round requests input again, and visibility loss, manual stop, permission denial and microphone-track termination stop the round.
+
+Falling notes use a 3.2-second lookahead aligned to a gold strike line. Pitch and timing are both required: ±180 ms scores 100; up to ±380 ms scores 60. Unplayed targets expire as misses. Early/late/wrong input produces red plus text, correct input green plus text. One event can score a target only once. Levels unlock at 60% timed hits; 80/95% earn two/three stars. Best per-stage score persists in localStorage. No backing audio is played during listening, to avoid self-triggering.
+
+Validation includes generated PCM passing through the microphone hook/Analyser path, permission ordering and cleanup, timing/score boundaries, stage locks, game microphone gating and red/green feedback. These are synthetic and component tests, not validation on the family's physical keyboard/tablet.

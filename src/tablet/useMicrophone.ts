@@ -34,7 +34,6 @@ export function useMicrophone(
       throw new Error(
         "این مرورگر به میکروفون دسترسی ندارد. اپ را در Safari یا Chrome و با آدرس HTTPS باز کن.",
       );
-    const ctx = await audioContext();
     const s = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: false,
@@ -47,6 +46,20 @@ export function useMicrophone(
       return false;
     }
     stream.current = s;
+    s.getTracks().forEach((t) =>
+      t.addEventListener?.("ended", () => stop(), { once: true }),
+    );
+    let ctx: AudioContext;
+    try {
+      ctx = await audioContext();
+    } catch (e) {
+      stop();
+      throw e;
+    }
+    if (id !== generation.current) {
+      s.getTracks().forEach((t) => t.stop());
+      return false;
+    }
     node.current = ctx.createMediaStreamSource(s);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 4096;
@@ -57,7 +70,7 @@ export function useMicrophone(
     setActive(true);
     const read = (now: number) => {
       if (id !== generation.current) return;
-      if (now - last >= 70) {
+      if (now - last >= 35) {
         last = now;
         analyser.getFloatTimeDomainData(data);
         let rms = 0;

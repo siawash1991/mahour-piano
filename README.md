@@ -4,6 +4,12 @@
 
 A Persian / RTL piano practice web app for a seven-year-old beginner, with a progressive path toward early intermediate skills. Built with React, TypeScript and Vite; deployed to Vercel. No account, backend, analytics, external runtime CDN, or audio upload.
 
+## Rhythm game (default entry)
+
+Select the first square on the stage map. Every stage activates the microphone and displays its live level and detected pitch. Play the labeled C key once to verify input; only then does the game start button enable. Numbers fall toward the gold line: play the matching physical key when they arrive. Correct timed notes turn the surface green; wrong, early, late or missed notes turn it red. Earn at least 60% timed hits to unlock the next stage. Best scores and stars persist locally. Browser permission may already be granted; the app cannot force a new browser prompt.
+
+42 automated tests cover DSP, permission ordering, input processing, timing, progression and UI. Physical keyboard and tablet behavior still need device verification.
+
 ## Tablet above a small keyboard
 
 Choose the prominent tablet card on the home page. With an adult, locate a C key with eight white keys available to its right, play it three times with releases, and confirm the displayed octave before placing 1–8 labels. The app speaks bundled Persian prompts, highlights one large number, and listens to the physical keyboard. Seven beginner items fit the numbered range; use the general studio for the later curriculum.

@@ -41,18 +41,27 @@ import { detectPitch } from "./pitch";
 import { readAttempts, saveAttempts, type Attempt } from "./storage";
 import "./style.css";
 import { Staff } from "./Staff";
+import { RhythmGame } from "./game/RhythmGame";
+import {stages} from "./game/engine";
 import { TabletStudio, FantasyIcon } from "./tablet/TabletStudio";
 type View =
-  "home" | "path" | "songs" | "practice" | "progress" | "guide" | "tablet";
+  | "home"
+  | "path"
+  | "songs"
+  | "practice"
+  | "progress"
+  | "guide"
+  | "tablet"
+  | "game";
 
 export function App() {
-  const [view, setView] = useState<View>("home"),
+  const [view, setView] = useState<View>("game"),
     [lesson, setLesson] = useState<Lesson>(lessons[0]),
     [attempts, setAttempts] = useState(readAttempts),
     [notation, setNotation] = useState("number"),
     [bpm, setBpm] = useState(70),
     [mode, setMode] = useState("wait"),
-    [source, setSource] = useState("screen"),
+    [source, setSource] = useState("mic"),
     [mic, setMic] = useState(false),
     [midiReady, setMidiReady] = useState(false),
     [message, setMessage] = useState("آماده‌ای؟ اولین نت را بزن."),
@@ -184,11 +193,14 @@ export function App() {
   };
   const begin = async () => {
     reset();
-    await audioContext();
     started.current = performance.now();
     rhythmStart.current = 0;
     runRef.current = true;
     setRunning(true);
+    if (source === "mic") {
+      await startMic();
+      if (!runRef.current) return;
+    } else await audioContext();
     if (mode === "rhythm") {
       counting.current = true;
       setMessage("چهار ضرب گوش کن؛ بعد شروع کن.");
@@ -214,7 +226,6 @@ export function App() {
         ),
       );
     } else setMessage("اولین نت را بزن؛ من منتظرم.");
-    if (source === "mic") await startMic();
   };
   handler.current = (m, s) => {
     if (s !== source || !runRef.current || counting.current || demo) return;
@@ -332,6 +343,7 @@ export function App() {
       };
       frame();
     } catch (e) {
+      stopMic();
       runRef.current = false;
       setRunning(false);
       clearTimers();
@@ -467,6 +479,19 @@ export function App() {
     ["songs", "آهنگ‌ها", <FantasyIcon name="coach" />],
     ["progress", "گزارش تمرین", <FantasyIcon name="trophy" />],
   ];
+  if (view === "game")
+    return (
+      <RhythmGame
+        onExit={() => navigate("home")}
+        onSave={(a) =>
+          setAttempts((prev) => {
+            const list = [...prev, a].slice(-1000);
+            saveAttempts(list);
+            return list;
+          })
+        }
+      />
+    );
   if (view === "tablet")
     return (
       <TabletStudio
@@ -573,15 +598,14 @@ export function App() {
                   <Timer size={17} /> آرام و کوتاه تمرین کن
                 </div>
               </div>
-              <button
-                className="tablet-entry"
-                onClick={() => navigate("tablet")}
-              >
+              <button className="tablet-entry" onClick={() => navigate("game")}>
                 <FantasyIcon name="coach" />
                 <span>
                   <small>مخصوص کیبورد واقعی تو</small>
-                  <b>تبلت را بالای کیبورد بگذار!</b>
-                  <span>ستاره راهنمایی می‌کند؛ تو روی ساز خودت می‌زنی.</span>
+                  <b>بازی ریتم با کیبورد واقعی</b>
+                  <span>
+                    شماره‌ها را روی خط بزن، امتیاز بگیر و مرحله بعد برو.
+                  </span>
                 </span>
                 <span className="entry-cta">
                   بریم با کیبورد <ChevronLeft />
@@ -1259,7 +1283,7 @@ export function App() {
                         .map((a, i) => (
                           <tr key={i}>
                             <td>
-                              {allLessons.find((l) => l.id === a.id)?.title ||
+                              {allLessons.find((l) => l.id === a.id)?.title || stages.find(s=>s.id===a.id)?.title ||
                                 a.id}
                             </td>
                             <td>

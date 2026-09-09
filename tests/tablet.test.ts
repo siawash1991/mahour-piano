@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  NoteGate,
   transpose,
   keyFor,
   chunks,
@@ -23,45 +22,4 @@ test("chunking never drops or duplicates a note", () => {
     assert.deepEqual(c.flat(), l.steps);
     assert.ok(c.every((x) => x.length > 0 && x.length <= 4));
   }
-});
-test("unstable and low-confidence sound never produces a wrong-note candidate", () => {
-  const gate = new NoteGate();
-  for (let i = 0; i < 30; i++)
-    assert.equal(gate.accept({ midi: 60, confidence: 0.8 }, 0.1), null);
-  for (let i = 0; i < 30; i++)
-    assert.equal(
-      gate.accept({ midi: i % 2 ? 60 : 72, confidence: 0.99 }, 0.1),
-      null,
-    );
-});
-test("held notes count once and silence rearms repeated attacks", () => {
-  const gate = new NoteGate(),
-    p = { midi: 60, confidence: 0.99 };
-  assert.equal(gate.accept(p, 0.1), null);
-  assert.equal(gate.accept(p, 0.1), null);
-  assert.equal(gate.accept(p, 0.1), 60);
-  for (let i = 0; i < 30; i++) assert.equal(gate.accept(p, 0.1), null);
-  for (let i = 0; i < 3; i++) gate.accept(null, 0);
-  gate.accept(p, 0.1);
-  gate.accept(p, 0.1);
-  assert.equal(gate.accept(p, 0.1), 60);
-});
-test("a glitchy frame mid-attack does not throw away the note", () => {
-  const gate = new NoteGate(),
-    p = { midi: 60, confidence: 0.99 };
-  // A real piano attack is inharmonic for a moment: the detector reads nothing, then recovers.
-  assert.equal(gate.accept(p, 0.1), null);
-  assert.equal(gate.accept(null, 0.1), null);
-  assert.equal(gate.accept(p, 0.1), null);
-  assert.equal(gate.accept({ midi: 60, confidence: 0.5 }, 0.1), null);
-  assert.equal(gate.accept(p, 0.1), 60);
-});
-test("a different confident pitch still contradicts and restarts the count", () => {
-  const gate = new NoteGate();
-  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
-  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
-  assert.equal(gate.accept({ midi: 67, confidence: 0.99 }, 0.1), null);
-  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
-  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), null);
-  assert.equal(gate.accept({ midi: 60, confidence: 0.99 }, 0.1), 60);
 });

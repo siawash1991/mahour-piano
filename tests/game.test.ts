@@ -88,3 +88,22 @@ test('slow practice widens the window that both the judge and the matcher use',(
   assert.equal(match(60,pending([1000,60]),1000+WINDOW+200,windowFor(2)).matched,true);
   assert.equal(judge(60,60,WINDOW+200,2),'good');assert.equal(judge(60,60,PERFECT*2,2),'perfect');
 });
+
+import {resolve,readTuning,saveTuning,TUNING_KEYS,LIMIT} from '../src/game/tuning.ts';
+test('tuning takes the middle reading, so one misheard note cannot drag the result',()=>{
+  assert.equal(resolve(TUNING_KEYS,TUNING_KEYS),0);
+  assert.equal(resolve(TUNING_KEYS,TUNING_KEYS.map(n=>n-12)),-12);
+  assert.equal(resolve(TUNING_KEYS,TUNING_KEYS.map(n=>n+12)),12);
+  // middle reading wins over a single neighbour-key slip
+  assert.equal(resolve(TUNING_KEYS,[60,65,67]),0);
+  assert.equal(resolve(TUNING_KEYS,[72,77,79]),12);
+  // a reading a whole fourth out is disagreement, not a slip, and must not be smoothed over
+  assert.equal(resolve(TUNING_KEYS,[72,73,72]),null);
+});
+test('readings that disagree are refused rather than averaged into a number fitting none',()=>{
+  assert.equal(resolve(TUNING_KEYS,[60,71,67]),null);
+  assert.equal(resolve(TUNING_KEYS,[48,64,79]),null);
+  assert.equal(resolve(TUNING_KEYS,[60,64]),null);
+  assert.equal(resolve(TUNING_KEYS,[]),null);
+  assert.equal(resolve(TUNING_KEYS,TUNING_KEYS.map(n=>n+LIMIT+12)),null);
+});

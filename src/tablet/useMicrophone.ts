@@ -1,7 +1,6 @@
 import { useRef, useState, useEffect } from "react";
 import { audioContext } from "../audio";
-import { detectPitch } from "../pitch";
-import { NoteGate } from "./model";
+import { harmonics, strike, strikeThreshold, type Comb } from "../pitch";
 import { noiseFloor, signalThreshold, meter } from "./signal";
 export function useMicrophone(
   onNote: (midi: number) => void,
@@ -16,8 +15,8 @@ export function useMicrophone(
     generation = useRef(0),
     node = useRef<MediaStreamAudioSourceNode | null>(null),
     sink = useRef<GainNode | null>(null),
-    gate = useRef(new NoteGate()),
-    params = useRef({ sensitivity: 2, deviceId: "", automatic: true });
+    armed = useRef(0),
+    params = useRef({ sensitivity: 2, deviceId: "", automatic: false });
   const [active, setActive] = useState(false),
     [level, setLevel] = useState(0),
     [quality, setQuality] = useState<"quiet" | "unclear" | "clear">("quiet"),
@@ -25,7 +24,7 @@ export function useMicrophone(
     [devices, setDevices] = useState<MediaDeviceInfo[]>([]),
     [deviceId, setDevice] = useState(""),
     [sensitivity, setSensitivityState] = useState(2),
-    [automatic, setAuto] = useState(true),
+    [automatic, setAuto] = useState(false),
     [diagnostic, setDiagnostic] = useState("میکروفون خاموش است"),
     [threshold, setThreshold] = useState(0.0001);
   const stop = () => {
@@ -78,7 +77,7 @@ export function useMicrophone(
       }
       node.current = ctx.createMediaStreamSource(s);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 4096;
+      analyser.fftSize = 2048;
       node.current.connect(analyser);
       // Keep the graph pulled on mobile browsers, without playing microphone audio back.
       sink.current = ctx.createGain();
@@ -111,14 +110,16 @@ export function useMicrophone(
       );
       setActive(true);
       setCalibrating(true);
-      const data = new Float32Array(4096),
-        background: number[] = [];
-      gate.current.reset();
+      const data = new Float32Array(2048),
+        background: number[] = [],
+        quiet: Comb = {
+          total: new Float32Array(32),
+          fundamental: new Float32Array(32),
+        };
       let last = 0,
         first: number | null = null,
         noise = 0.0001,
-        lastAttack = -1000,
-        envelope = 0;
+        previous: Comb = quiet;
       const read = (now: number) => {
         if (id !== generation.current) return;
         if (now - last >= 35) {
@@ -137,14 +138,35 @@ export function useMicrophone(
             const floor = signalThreshold(noise, params.current.sensitivity);
             setThreshold(floor);
             setCalibrating(false);
-            const p = detectPitch(data, ctx.sampleRate, floor);
-            setQuality(
-              rms < floor
-                ? "quiet"
-                : p && p.confidence >= 0.88
-                  ? "clear"
-                  : "unclear",
-            );
+            let voiced = false;
+            if (rms < floor) {
+              // Silence is the reference a note rises out of, so the next frame above the floor
+              // is measured against nothing rather than against a stale chord.
+              previous = quiet;
+              setQuality("quiet");
+            } else {
+              const current = harmonics(data, ctx.sampleRate);
+              for (let i = 0; i < current.total.length; i++)
+                if (
+                  current.fundamental[i] >= current.total[i] * 0.3 &&
+                  current.total[i] > rms * 0.1
+                )
+                  voiced = true;
+              setQuality(voiced ? "clear" : "unclear");
+              if (allowed.current() && now - armed.current > 110) {
+                const m = strike(
+                  previous,
+                  current,
+                  rms,
+                  strikeThreshold(params.current.sensitivity),
+                );
+                if (m !== null) {
+                  armed.current = now;
+                  callback.current(m);
+                }
+              }
+              previous = current;
+            }
             setDiagnostic(
               ctx.state !== "running"
                 ? "پردازش صدا متوقف شده؛ دوباره میکروفون را روشن کن."
@@ -152,28 +174,10 @@ export function useMicrophone(
                   ? "هیچ سیگنالی از این ورودی نمی‌رسد؛ میکروفون دیگری انتخاب کن."
                   : rms < floor
                     ? "صدا خیلی آرام است؛ ساز را نزدیک‌تر یا حساسیت را بیشتر کن."
-                    : !p
+                    : !voiced
                       ? "صدا دریافت می‌شود، اما نت واضح نیست؛ حالت Piano و بدون افکت."
                       : "صدای نت واضح دریافت می‌شود.",
             );
-            if (!allowed.current()) {
-              if (rms < floor) gate.current.accept(null, rms, floor, 0.88);
-            } else {
-              // A struck key rises above the decaying tail of the one before it. Measuring the
-              // rise against a slow-release peak — not against the single previous frame — is
-              // what lets the same note, played twice in a row, register twice.
-              if (
-                p &&
-                rms > Math.max(floor * 1.5, envelope * 1.4) &&
-                now - lastAttack > 110
-              ) {
-                gate.current.reset();
-                lastAttack = now;
-              }
-              const m = gate.current.accept(p, rms, floor, 0.88);
-              if (m !== null) callback.current(m);
-            }
-            envelope = Math.max(rms, envelope * 0.9);
           }
         }
         frame.current = requestAnimationFrame(read);
@@ -214,8 +218,8 @@ export function useMicrophone(
   return {
     start,
     stop,
-    /** Forget the last note heard, so an identical note struck next still counts. */
-    rearm: () => gate.current.reset(),
+    /** Drop the short lock-out after a strike, so the very next frame can report a note. */
+    rearm: () => (armed.current = 0),
     active,
     level,
     quality,

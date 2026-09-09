@@ -47,3 +47,72 @@ export function detectPitch(
 export function frequency(midi: number) {
   return 440 * 2 ** ((midi - 69) / 12);
 }
+
+/** The notes the game and the studio can ask for: C3 up to G above the treble staff. */
+export const LOW_KEY = 48;
+export const HIGH_KEY = 79;
+const HARMONICS = 6;
+/**
+ * Energy at one frequency. Goertzel costs one pass per frequency, which beats a whole FFT when
+ * only the harmonics of the thirty-odd notes a child could be playing actually matter.
+ */
+function goertzel(samples: Float32Array, rate: number, hz: number) {
+  const c = 2 * Math.cos((2 * Math.PI * hz) / rate);
+  let s1 = 0,
+    s2 = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const s = samples[i] + c * s1 - s2;
+    s2 = s1;
+    s1 = s;
+  }
+  return Math.sqrt(Math.abs(s1 * s1 + s2 * s2 - c * s1 * s2)) / samples.length;
+}
+export type Comb = { total: Float32Array; fundamental: Float32Array };
+/** How much energy sits on each candidate note's harmonic series, and on its bare fundamental. */
+export function harmonics(samples: Float32Array, rate: number): Comb {
+  const n = HIGH_KEY - LOW_KEY + 1,
+    total = new Float32Array(n),
+    fundamental = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const f0 = frequency(LOW_KEY + i);
+    let sum = 0;
+    for (let h = 1; h <= HARMONICS; h++) {
+      const hz = f0 * h;
+      if (hz * 2 >= rate) break;
+      const g = goertzel(samples, rate, hz);
+      if (h === 1) fundamental[i] = g;
+      sum += g / h;
+    }
+    total[i] = sum;
+  }
+  return { total, fundamental };
+}
+/**
+ * Which note was just struck, or null if nothing was. A piano is never monophonic — the note
+ * before is still ringing, and often the two before that — so asking "what pitch is sounding?"
+ * is the wrong question and a monophonic detector answers it with silence or the wrong note.
+ * Asking "whose harmonics just got louder?" survives the overlap, and the threshold is relative
+ * to loudness so it does not depend on how hard the child plays.
+ */
+export function strike(
+  previous: Comb,
+  current: Comb,
+  rms: number,
+  threshold: number,
+): number | null {
+  let best = -1,
+    rise = 0;
+  for (let i = 0; i < current.total.length; i++) {
+    // Without a fundamental of its own, a candidate is only an echo of a lower note's harmonics.
+    if (current.fundamental[i] < current.total[i] * 0.3) continue;
+    const gain = current.total[i] - previous.total[i];
+    if (gain > rise) {
+      rise = gain;
+      best = i;
+    }
+  }
+  return best >= 0 && rise > threshold * Math.max(rms, 1e-9) ? LOW_KEY + best : null;
+}
+/** The strike threshold for the listening-sensitivity setting the parent chose (1 strict, 6 keen). */
+export const strikeThreshold = (sensitivity: number) =>
+  0.3 / Math.max(1, Math.min(6, sensitivity));

@@ -49,11 +49,11 @@ async function harness() {
     await result.current.start();
   });
   let clock = 0;
-  /** Advance `frames` analyser reads at the given amplitude, 40ms apart. */
-  const play = async (level: number, frames = 1) => {
+  /** Advance `frames` analyser reads at the given amplitude, `step` ms apart. */
+  const play = async (level: number, frames = 1, step = 40) => {
     amplitude = level;
     for (let i = 0; i < frames; i++) {
-      clock += 40;
+      clock += step;
       await act(async () => {
         state.frame?.(clock);
       });
@@ -75,35 +75,54 @@ it("requests real microphone permission before audio initialization and delivers
   expect(result.current.active).toBe(false);
 });
 
-it("the same note struck twice counts twice, even when the first is still ringing", async () => {
+
+
+
+it("the same key struck again while it still rings counts as a second note", async () => {
   const { received, play } = await harness();
   await play(0, 31);
-  await play(0.02, 4); // first strike
+  await play(0.02, 2); // first strike
   expect(received).toHaveBeenCalledTimes(1);
-  // A keyboard note decays slowly rather than falling silent between strikes, so comparing a
-  // frame against the one 40ms before it never sees a rise steep enough to call a new attack.
-  for (let i = 0; i < 12; i++) await play(0.02 * 0.97 ** (i + 1));
+  // The note rings on and decays rather than falling silent, then the child strikes it again.
+  for (let i = 0; i < 8; i++) await play(0.02 * 0.85 ** (i + 1));
   expect(received).toHaveBeenCalledTimes(1);
-  await play(0.02, 4); // second strike of the very same key
+  await play(0.02, 2);
   expect(received).toHaveBeenCalledTimes(2);
   expect(received).toHaveBeenLastCalledWith(60);
 });
 
-it("a held note is not mistaken for a second strike", async () => {
+it("a held or decaying note is never reported as a new one", async () => {
   const { received, play } = await harness();
   await play(0, 31);
-  await play(0.02, 4);
+  await play(0.02, 2);
   expect(received).toHaveBeenCalledTimes(1);
-  for (let i = 0; i < 40; i++) await play(0.02 * 0.97 ** (i + 1));
+  await play(0.02, 20); // held perfectly steady
+  for (let i = 0; i < 25; i++) await play(0.02 * 0.97 ** (i + 1)); // and left to decay
   expect(received).toHaveBeenCalledTimes(1);
 });
 
-it("re-arming makes the microphone report an identical note again", async () => {
+it("an attack that ramps across several frames is one note, not three", async () => {
+  const { received, play } = await harness();
+  await play(0, 31);
+  // Frames land 40ms apart, so all three fall inside the 110ms lock-out after the first.
+  await play(0.008);
+  await play(0.016);
+  await play(0.024);
+  expect(received).toHaveBeenCalledTimes(1);
+});
+
+it("re-arming lifts the lock-out that keeps one attack from counting twice", async () => {
   const { result, received, play } = await harness();
   await play(0, 31);
-  await play(0.02, 4);
+  await play(0.008);
   expect(received).toHaveBeenCalledTimes(1);
   act(() => result.current.rearm());
-  await play(0.02, 3);
+  await play(0.016); // 40ms later: suppressed by the lock-out, but re-arming cleared it
   expect(received).toHaveBeenCalledTimes(2);
+});
+
+it("silence never produces a note however long it lasts", async () => {
+  const { received, play } = await harness();
+  await play(0, 60);
+  expect(received).not.toHaveBeenCalled();
 });

@@ -37,7 +37,7 @@ import {
   type Step,
 } from "./curriculum";
 import { audioContext, playNote, tick } from "./audio";
-import { detectPitch } from "./pitch";
+import { harmonics, strike, strikeThreshold, type Comb } from "./pitch";
 import { readAttempts, saveAttempts, type Attempt } from "./storage";
 import "./style.css";
 import { Staff } from "./Staff";
@@ -295,48 +295,39 @@ export function App() {
       stream.current = media;
       const ctx = await audioContext(),
         analyser = ctx.createAnalyser();
-      analyser.fftSize = 4096;
+      analyser.fftSize = 2048;
       ctx.createMediaStreamSource(media).connect(analyser);
-      const data = new Float32Array(analyser.fftSize);
-      let candidate = -1,
-        stable = 0,
-        last = -1,
-        quiet = 0,
-        prevRms = 0,
+      const data = new Float32Array(analyser.fftSize),
+        silent: Comb = {
+          total: new Float32Array(32),
+          fundamental: new Float32Array(32),
+        };
+      let previous: Comb = silent,
         lastAt = 0,
         frameAt = 0;
       setMic(true);
       const frame = () => {
         if (!stream.current) return;
         const now = performance.now();
-        if (now - frameAt > 65) {
+        if (now - frameAt > 45) {
           frameAt = now;
           analyser.getFloatTimeDomainData(data);
-          const p = detectPitch(data, ctx.sampleRate);
-          if (!p) {
-            quiet++;
-            if (quiet >= 2) last = -1;
-            stable = 0;
-            candidate = -1;
-            prevRms = 0;
-          } else {
-            quiet = 0;
-            if (candidate === p.midi) stable++;
-            else {
-              candidate = p.midi;
-              stable = 1;
+          let rms = 0;
+          for (const x of data) rms += x * x;
+          rms = Math.sqrt(rms / data.length);
+          // Same reasoning as the game: a piano is never monophonic, so ask which note just got
+          // louder rather than which single pitch is sounding.
+          if (rms < 0.004) previous = silent;
+          else {
+            const current = harmonics(data, ctx.sampleRate);
+            if (now - lastAt > 140) {
+              const m = strike(previous, current, rms, strikeThreshold(2));
+              if (m !== null) {
+                lastAt = now;
+                handler.current(m, "mic");
+              }
             }
-            const onset = p.rms > Math.max(0.015, prevRms * 1.65);
-            if (
-              stable >= 2 &&
-              (p.midi !== last || onset) &&
-              now - lastAt > 240
-            ) {
-              last = p.midi;
-              lastAt = now;
-              handler.current(p.midi, "mic");
-            }
-            prevRms = p.rms;
+            previous = current;
           }
         }
         raf.current = requestAnimationFrame(frame);

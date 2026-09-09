@@ -33,6 +33,8 @@ import { RhythmGame } from "../src/game/RhythmGame";
 import { stages, schedule, readSpeed } from "../src/game/engine";
 beforeEach(() => {
   localStorage.clear();
+  // Most of these exercise play, not the one-time introduction to the child's piano.
+  localStorage.setItem("mahour-tuning", "0");
   io.start.mockClear();
   io.rearm.mockClear();
   io.quality = "clear";
@@ -191,7 +193,7 @@ it("the right note in the wrong octave re-bases the keyboard instead of failing 
   now = firstBeat(0, readSpeed());
   await note(72); // stage 1 wants middle C; this keyboard's "key 1" is an octave up
   expect(screen.getByText("۱۰۰")).toBeTruthy();
-  expect(localStorage.getItem("mahour-keyboard-base")).toBe("72");
+  expect(localStorage.getItem("mahour-tuning")).toBe("12");
   // Only the first note re-bases; a genuinely wrong note afterwards is still wrong.
   now = firstBeat(0, readSpeed()) + 100;
   await note(62);
@@ -206,4 +208,56 @@ it("a wrong note says what it heard so a parent can tell a mis-hit from a mis-he
   now = firstBeat(0, readSpeed());
   await note(64);
   expect(screen.getByRole("status").textContent).toContain("می شنیدم");
+});
+
+it("the first ever stage stops to learn the child's piano before asking them to play", async () => {
+  localStorage.clear();
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  expect(screen.getByText("بیا با پیانوی تو آشنا شوم")).toBeTruthy();
+  expect(screen.queryByText("همین‌جا بزن")).toBe(null);
+  // Three keys are asked for, and what each one answered is remembered as an offset.
+  await note(60);
+  await note(64);
+  await note(67);
+  expect(localStorage.getItem("mahour-tuning")).toBe("0");
+  expect(screen.getByRole("status").textContent).toContain("عالی");
+});
+
+it("a keyboard whose keys sit an octave down is learned, not fought", async () => {
+  localStorage.clear();
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  await note(48);
+  await note(52);
+  await note(55);
+  expect(localStorage.getItem("mahour-tuning")).toBe("-12");
+  expect(screen.getByRole("status").textContent).toContain("C3");
+});
+
+it("readings that disagree are rejected and asked for again rather than averaged", async () => {
+  localStorage.clear();
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  await note(60);
+  await note(71); // nothing like the E that was asked for
+  await note(67);
+  expect(localStorage.getItem("mahour-tuning")).toBe(null);
+  expect(screen.getByRole("status").textContent).toContain("یک بار دیگر");
+  // and it starts over rather than leaving the child stuck
+  await note(60);
+  await note(64);
+  await note(67);
+  expect(localStorage.getItem("mahour-tuning")).toBe("0");
+});
+
+it("a learned offset is applied to every note the stage asks for", async () => {
+  localStorage.setItem("mahour-tuning", "-12");
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  now = firstBeat(0, readSpeed());
+  await note(48); // middle C on this child's keyboard
+  expect(screen.getByText("۱۰۰")).toBeTruthy();
 });

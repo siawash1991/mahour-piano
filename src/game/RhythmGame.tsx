@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Mic,
+  Piano,
   ArrowRight,
   Play,
   RotateCcw,
@@ -11,12 +12,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useMicrophone } from "../tablet/useMicrophone";
-import {
-  readTuning,
-  saveTuning,
-  resolve,
-  TUNING_KEYS,
-} from "./tuning";
+import { readTuning, saveTuning, resolve, TUNING_KEYS } from "./tuning";
 import { fa, noteName, western } from "../curriculum";
 import { FantasyIcon } from "../tablet/TabletStudio";
 import {
@@ -39,6 +35,8 @@ import {
 } from "./engine";
 import type { Attempt } from "../storage";
 import "./game.css";
+import { TouchPiano } from "./TouchPiano";
+import { audioContext } from "../audio";
 type RecordMap = Record<string, { score: number; stars: number }>;
 function load(): RecordMap {
   try {
@@ -68,6 +66,7 @@ export function RhythmGame({
   /** A stage to jump straight into, from the song library. Ignores the usual unlock order. */
   openStage?: string;
 }) {
+  const [input, setInput] = useState<"touch" | "mic">("touch");
   const [screen, setScreen] = useState<
       "map" | "tune" | "ready" | "play" | "result"
     >("map"),
@@ -87,6 +86,7 @@ export function RhythmGame({
     [hits, setHits] = useState(0),
     [combo, setCombo] = useState(0),
     [resolved, setResolved] = useState<Set<number>>(new Set());
+  const effectiveOffset = input === "touch" ? 0 : offset;
   const live = useRef(false),
     listening = useRef(false),
     epoch = useRef(0),
@@ -113,7 +113,8 @@ export function RhythmGame({
   const stage = stages[selected];
   const mic = useMicrophone(
     (m) => handler.current(m),
-    () => live.current || listening.current || tuning.current,
+    () =>
+      input === "mic" && (live.current || listening.current || tuning.current),
   );
   const signal = useRef(mic.quality);
   signal.current = mic.quality;
@@ -162,11 +163,11 @@ export function RhythmGame({
       wrong: errors.current,
       accuracy: Math.round((hit.current / s.steps.length) * 100),
       seconds: Math.round((performance.now() - start.current) / 1000),
-      source: "mic",
+      source: input === "touch" ? "screen" : "mic",
       partial: false,
       mode: "falling-notes",
       rhythm: Math.round((hit.current / s.steps.length) * 100),
-      baseMidi: 60 + offset,
+      baseMidi: 60 + effectiveOffset,
     });
   };
   /** Turn the microphone on. Returns false when the browser or the parent said no. */
@@ -211,7 +212,7 @@ export function RhythmGame({
       s.bpm * speed,
     );
     run.current = { stage: s, times, tol, keys: board(s.steps) };
-    clear.current = false;
+    clear.current = input === "touch";
     listening.current = false;
     done.current = new Set();
     hit.current = 0;
@@ -223,7 +224,7 @@ export function RhythmGame({
     setCombo(0);
     setResolved(new Set());
     setTime(0);
-    setFeedback("وقتی شماره به خط طلایی رسید، روی ساز بزن");
+    setFeedback("وقتی شماره به خط طلایی رسید، کلیدش را بزن");
     setFlash("");
     start.current = performance.now();
     live.current = true;
@@ -310,7 +311,7 @@ export function RhythmGame({
     // The count-in is free warm-up: notes played before the first one is even catchable are
     // neither judged nor counted, and the gate is re-armed so the real attempt still lands.
     if (elapsed < times[0] - window) {
-      mic.rearm();
+      if (input === "mic") mic.rearm();
       setFeedback("صبر کن تا شماره به خط طلایی برسد");
       return;
     }
@@ -318,14 +319,20 @@ export function RhythmGame({
       .map((step, index) => ({
         index,
         at: times[index],
-        midi: step.midi + offset,
+        midi: step.midi + effectiveOffset,
       }))
       .filter((p) => !done.current.has(p.index));
-    const { pick, matched, octave } = match(m, pending, elapsed, window);
+    const { pick, matched, octave } = match(
+      m,
+      pending,
+      elapsed,
+      window,
+      input === "mic",
+    );
     if (!pick) return;
     // Playing the right note an octave out settles which octave the keyboard sits in, so the
     // guide and the notes still to come line up with what the child is actually touching.
-    if (octave) {
+    if (octave && input === "mic") {
       setOffset(offset + octave);
       saveTuning(offset + octave);
     }
@@ -373,14 +380,14 @@ export function RhythmGame({
     };
   }, []);
   useEffect(() => {
-    if (screen === "play" && !mic.active) {
+    if (screen === "play" && input === "mic" && !mic.active) {
       stop();
       setScreen("ready");
       setStatus(
         "اتصال میکروفون قطع شد؛ امتیاز این اجرای ناتمام ثبت نشد. دوباره وصل کن.",
       );
     }
-  }, [mic.active, screen]);
+  }, [mic.active, screen, input]);
   const unlocked = (i: number) =>
     i === 0 || (records[stages[i - 1].id]?.stars ?? 0) >= 1;
   const next = stages.findIndex((s, i) => unlocked(i) && !records[s.id]?.stars);
@@ -397,12 +404,31 @@ export function RhythmGame({
     if (screen === "map" && next > 0)
       resume.current?.scrollIntoView?.({ block: "center" });
   }, [screen, next]);
-  /** One tap on a stage: microphone on, then straight into the falling notes. */
+  useEffect(() => {
+    if (screen === "play")
+      document
+        .querySelector(".rhythm-game")
+        ?.scrollIntoView?.({ block: "start" });
+  }, [screen]);
+  /** One tap starts touch audio or connects the selected physical input. */
   const choose = async (i: number) => {
     stop();
     setSelected(i);
     setHeard(null);
     // The very first time, learn the child's piano before asking them to play against it.
+    if (input === "touch") {
+      setScreen("ready");
+      const token = epoch.current;
+      try {
+        await audioContext();
+        if (token === epoch.current) begin(i);
+      } catch {
+        setStatus(
+          "صدا فعال نشد؛ صدای دستگاه را بررسی کن و دوباره شروع را بزن.",
+        );
+      }
+      return;
+    }
     if (!tuned) return void tune();
     setScreen("ready");
     if (await connect()) begin(i);
@@ -427,7 +453,9 @@ export function RhythmGame({
     </div>
   );
   return (
-    <div className={`rhythm-game ${flash}`}>
+    <div
+      className={`rhythm-game ${flash} ${input === "touch" ? "touch-mode" : ""}`}
+    >
       <header className="game-header">
         <button
           className="small-button"
@@ -449,20 +477,50 @@ export function RhythmGame({
         <div className="world-map">
           <FantasyIcon name="coach" />
           <h1>{fa(stages.length)} مرحله تا نوازندگی</h1>
-          <p>روی مرحله بزن؛ میکروفون روشن می‌شود و بازی خودش شروع می‌شود.</p>
+          <p>
+            {input === "touch"
+              ? "روی مرحله بزن و با پیانوی زیر بازی بنواز؛ میکروفون لازم نیست."
+              : "روی مرحله بزن؛ میکروفون روشن می‌شود و بازی شروع می‌شود."}
+          </p>
           {speedPicker}
-          <button
-            className="text-button"
-            onClick={() => {
-              setScreen("ready");
-              setStatus("اینجا می‌توانی میکروفون را آزمایش و تنظیم کنی.");
-            }}
-          >
-            <Settings size={16} /> تنظیم میکروفون
-          </button>
-          <button className="text-button" onClick={() => void tune()}>
-            <Gauge size={16} /> آشنا شدن با پیانوی من
-          </button>
+          <div className="input-choice" role="group" aria-label="روش نواختن">
+            <button
+              className={input === "touch" ? "on" : ""}
+              aria-pressed={input === "touch"}
+              onClick={() => {
+                stop();
+                setInput("touch");
+              }}
+            >
+              پیانوی لمسی · بدون میکروفون
+            </button>
+            <button
+              className={input === "mic" ? "on" : ""}
+              aria-pressed={input === "mic"}
+              onClick={() => {
+                stop();
+                setInput("mic");
+              }}
+            >
+              کیبورد واقعی · میکروفون
+            </button>
+          </div>
+          {input === "mic" && (
+            <>
+              <button
+                className="text-button"
+                onClick={() => {
+                  setScreen("ready");
+                  setStatus("اینجا می‌توانی میکروفون را آزمایش و تنظیم کنی.");
+                }}
+              >
+                <Settings size={16} /> تنظیم میکروفون
+              </button>
+              <button className="text-button" onClick={() => void tune()}>
+                <Gauge size={16} /> آشنا شدن با پیانوی من
+              </button>
+            </>
+          )}
           {stages.map((s, i) => {
             const locked = !unlocked(i),
               r = records[s.id],
@@ -565,6 +623,21 @@ export function RhythmGame({
               فعلاً رد شو
             </button>
           </div>
+        </section>
+      ) : screen === "ready" && input === "touch" ? (
+        <section className="game-ready">
+          <h1>{stage.title}</h1>
+          <p role="status">
+            {status || "کلیدها را امتحان کن، سپس بازی را شروع کن."}
+          </p>
+          <button className="button" onClick={() => void choose(selected)}>
+            شروع بازی با پیانوی لمسی
+          </button>
+          <TouchPiano
+            steps={stage.steps}
+            onNote={setHeard}
+            onError={() => setStatus("صدای دستگاه را بررسی کن.")}
+          />
         </section>
       ) : screen === "ready" ? (
         <section className="game-ready">
@@ -698,8 +771,12 @@ export function RhythmGame({
               {percent(speed)}
             </span>
             <span>
-              <Mic size={18} />
-              {mic.active ? "گوش می‌دهم" : "میکروفون قطع شد"}
+              {input === "touch" ? <Piano size={18} /> : <Mic size={18} />}
+              {input === "touch"
+                ? "پیانوی لمسی فعال است"
+                : mic.active
+                  ? "گوش می‌دهم"
+                  : "میکروفون قطع شد"}
             </span>
             <button
               className="small-button"
@@ -714,7 +791,7 @@ export function RhythmGame({
             </button>
           </div>
           <div className="play-feedback" role="status">
-            {mic.quality === "unclear"
+            {input === "mic" && mic.quality === "unclear"
               ? "صدا واضح نیست؛ فقط یک کلید و بدون پدال بزن."
               : feedback}
           </div>
@@ -743,7 +820,11 @@ export function RhythmGame({
                       ? "near"
                       : "")
                   }
-                  style={{ left: `${k.left}%`, width: `${k.width}%`, top: `${y}%` }}
+                  style={{
+                    left: `${k.left}%`,
+                    width: `${k.width}%`,
+                    top: `${y}%`,
+                  }}
                 >
                   {keyLabel(s.midi)}
                 </div>
@@ -758,30 +839,49 @@ export function RhythmGame({
               </div>
             )}
           </div>
-          <div className="game-piano" dir="ltr">
-            {run.current.keys.map((k) => (
-              <div
-                key={k.midi}
-                className={
-                  (k.white ? "" : "black ") +
-                  (heard === k.midi + offset ? "heard" : "")
+          {input === "touch" ? (
+            <>
+              <TouchPiano
+                steps={run.current.stage.steps}
+                onNote={(m) => handler.current(m)}
+                onError={() =>
+                  setFeedback("صدای دستگاه پخش نشد؛ صدا را روشن کن.")
                 }
-                style={{ left: `${k.left}%`, width: `${k.width}%` }}
-              >
-                {k.white && keyLabel(k.midi)}
+              />
+              <p className="game-caption">
+                روی همین کلیدها بزن؛ لمس هم‌زمان چند کلید هم کار می‌کند. با
+                کامپیوتر: A S D F G H J K
+              </p>
+            </>
+          ) : (
+            <>
+              {" "}
+              <div className="game-piano" dir="ltr">
+                {run.current.keys.map((k) => (
+                  <div
+                    key={k.midi}
+                    className={
+                      (k.white ? "" : "black ") +
+                      (heard === k.midi + offset ? "heard" : "")
+                    }
+                    style={{ left: `${k.left}%`, width: `${k.width}%` }}
+                  >
+                    {k.white && keyLabel(k.midi)}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <p className="game-caption">
-            <b>
-              {heard === null
-                ? mic.quality === "quiet"
-                  ? "هنوز هیچ صدایی نشنیده‌ام — ساز را نزدیک‌تر کن یا حساسیت را زیاد کن"
-                  : "صدا می‌رسد، اما هنوز نتی تشخیص ندادم"
-                : `می‌شنوم: ${western(heard)} · ${noteName(heard)} = کلید ${keyLabel(heard - offset)}`}
-            </b>{" "}
-            کلیدهای این تصویر راهنما هستند؛ روی کیبورد واقعی بزن.
-          </p>
+              <p className="game-caption">
+                <b>
+                  {heard === null
+                    ? mic.quality === "quiet"
+                      ? "هنوز هیچ صدایی نشنیده‌ام — ساز را نزدیک‌تر کن یا حساسیت را زیاد کن"
+                      : "صدا می‌رسد، اما هنوز نتی تشخیص ندادم"
+                    : `می‌شنوم: ${western(heard)} · ${noteName(heard)} = کلید ${keyLabel(heard - offset)}`}
+                </b>{" "}
+                کلیدهای این تصویر راهنما هستند؛ روی کیبورد واقعی بزن.
+              </p>
+            </>
+          )}
         </>
       ) : (
         <section className="game-result">

@@ -16,14 +16,16 @@ export function keyLabel(m: number): string {
 }
 export type Key = { midi: number; white: boolean; left: number; width: number };
 /**
- * The strip of piano keys a stage needs, always starting at middle C and never narrower than
+ * The strip of piano keys a stage needs, including middle C and never narrower than
  * one octave, laid out in percentages the way a real keyboard looks from above.
  */
 export function board(steps: { midi: number }[]): Key[] {
   let top = Math.max(72, ...steps.map((s) => s.midi));
   while (!isWhite(top)) top++;
+  let bottom = Math.min(60, ...steps.map((s) => s.midi));
+  while (!isWhite(bottom)) bottom--;
   const keys: number[] = [];
-  for (let m = 60; m <= top; m++) keys.push(m);
+  for (let m = bottom; m <= top; m++) keys.push(m);
   const unit = 100 / keys.filter(isWhite).length;
   let w = 0;
   return keys.map((midi) =>
@@ -46,7 +48,8 @@ const inRange = (steps: Step[]) =>
 /** Split a melody into bite-size stages, folding a lonely tail back into the previous stage. */
 export function cut(steps: Step[], size: number): Step[][] {
   const out: Step[][] = [];
-  for (let i = 0; i < steps.length; i += size) out.push(steps.slice(i, i + size));
+  for (let i = 0; i < steps.length; i += size)
+    out.push(steps.slice(i, i + size));
   if (out.length > 1 && out[out.length - 1].length <= size / 2)
     out.splice(-2, 2, [...out[out.length - 2], ...out[out.length - 1]]);
   return out;
@@ -103,8 +106,20 @@ const worlds: World[] = [
       ["132435421"],
     ],
   },
-  { title: "نان‌های داغ", hint: "اولین آهنگ واقعی‌ات", bpm: 60, song: "hot-cross", size: 4 },
-  { title: "مری و برهٔ کوچولو", hint: "یک ملودی آشنا، تکه‌تکه", bpm: 62, song: "mary", size: 6 },
+  {
+    title: "نان‌های داغ",
+    hint: "اولین آهنگ واقعی‌ات",
+    bpm: 60,
+    song: "hot-cross",
+    size: 4,
+  },
+  {
+    title: "مری و برهٔ کوچولو",
+    hint: "یک ملودی آشنا، تکه‌تکه",
+    bpm: 62,
+    song: "mary",
+    size: 6,
+  },
   {
     title: "وقتی قدیسان می‌آیند",
     hint: "یک ملودی شاد برای رژه رفتن",
@@ -134,10 +149,28 @@ const worlds: World[] = [
     song: "sunrise",
     size: 4,
   },
-  { title: "چشمک بزن، ستاره", hint: "آهنگ کامل در شش تکه", bpm: 66, song: "twinkle", size: 8 },
+  {
+    title: "چشمک بزن، ستاره",
+    hint: "آهنگ کامل در شش تکه",
+    bpm: 66,
+    song: "twinkle",
+    size: 8,
+  },
   { title: "سرود شادی", hint: "تم بتهوون", bpm: 66, song: "ode", size: 6 },
-  { title: "برادر ژاک", hint: "نت‌های سریع‌تر", bpm: 68, song: "frere", size: 8 },
-  { title: "زنگوله‌ها", hint: "ترجیع‌بند شاد", bpm: 70, song: "jingle", size: 6 },
+  {
+    title: "برادر ژاک",
+    hint: "نت‌های سریع‌تر",
+    bpm: 68,
+    song: "frere",
+    size: 8,
+  },
+  {
+    title: "زنگوله‌ها",
+    hint: "ترجیع‌بند شاد",
+    bpm: 70,
+    song: "jingle",
+    size: 6,
+  },
   {
     title: "ریتم‌های تازه",
     hint: "نت‌های کوتاه و بلند کنار هم",
@@ -319,19 +352,19 @@ export function match(
   pending: Pending[],
   elapsed: number,
   window: number,
+  allowOctave = true,
 ) {
   const sooner = (a: Pending, b: Pending) =>
     Math.abs(a.at - elapsed) <= Math.abs(b.at - elapsed) ? a : b;
   const near = pending.filter((p) => Math.abs(p.at - elapsed) <= window);
   const best = (test: (p: Pending) => boolean) =>
-    near.filter(test).reduce<Pending | undefined>(
-      (a, b) => (a ? sooner(a, b) : b),
-      undefined,
-    );
+    near
+      .filter(test)
+      .reduce<Pending | undefined>((a, b) => (a ? sooner(a, b) : b), undefined);
   const exact = best((p) => p.midi === heard);
   if (exact) return { pick: exact, matched: true, octave: 0 };
   const octave = best((p) => (heard - p.midi) % 12 === 0);
-  if (octave)
+  if (octave && allowOctave)
     return { pick: octave, matched: true, octave: heard - octave.midi };
   return {
     pick: pending.reduce<Pending | undefined>(

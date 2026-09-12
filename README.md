@@ -6,9 +6,13 @@ A Persian / RTL piano practice web app for a seven-year-old beginner, with a pro
 
 ## Rhythm game (default entry)
 
-The first time, the app asks the child to play three keys and learns how their piano answers, so a transposed keyboard or stickers that do not start at middle C are learned once instead of fought every stage. After that, select a square on the stage map: the microphone turns on and the stage starts, with a three-second count-in. Anything played during the count-in is free warm-up and is not judged. Numbers fall toward the gold line: play the matching physical key when they arrive, then release freely — only the moment a key is struck is measured, never how long it is held. A note counts while it is highlighted gold, and a heard pitch is matched to the note it actually fits rather than to whichever note is nearest in time, so one hesitation does not turn the rest of the run red. A practice-speed control (50/65/80/100%) stretches the schedule and widens the timing window by the same factor, so slow practice is genuinely more forgiving. The first note of a stage also settles the octave: the right note played an octave off re-bases the keyboard instead of counting as wrong. Correct timed notes turn the surface green; wrong, early, late or missed notes turn it red. Earn at least 60% timed hits to unlock the next stage. Best scores and stars persist locally. Browser permission may already be granted; the app cannot force a new browser prompt.
+Touch piano is the default input. Choose a stage and play the white and black keys directly below the falling notes; no microphone permission, keyboard calibration, MIDI device or external sound download is required. The keys sound on press and release on finger lift, cancellation, tab blur or leaving the exercise. Multiple fingers work independently. A/S/D/F/G/H/J/K/L/; also play the displayed white keys. Touch notes use their exact octave and ignore saved microphone tuning.
 
-42 automated tests cover DSP, permission ordering, input processing, timing, progression and UI. Physical keyboard and tablet behavior still need device verification.
+Play when the number reaches the gold line. Correct timed notes turn the surface green; incorrect or missed notes turn it red. Practice speeds (50/65/80/100%) stretch the timing window. Earn at least 60% timed hits to unlock the next stage. Scores and stars persist locally; touch attempts are recorded as `screen` input. Regular studio exercises, including bass notes and chords, also default to this playable piano.
+
+The optional “کیبورد واقعی · میکروفون” input retains physical-keyboard tuning and listening. It requests audio permission only when that mode is selected and started.
+
+91 automated tests cover DSP, timing, progression, touch release, simultaneous notes, chord exercises, permission separation and stored input provenance. Chromium tablet layout and pointer interactions were checked; physical tablet audio and touch behavior still need device verification.
 
 ## Tablet above a small keyboard
 

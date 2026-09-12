@@ -48,8 +48,9 @@ import {
 import { readAttempts, saveAttempts, type Attempt } from "./storage";
 import "./style.css";
 import { Staff } from "./Staff";
+import { TouchPiano } from "./game/TouchPiano";
 import { RhythmGame } from "./game/RhythmGame";
-import {stages} from "./game/engine";
+import { stages } from "./game/engine";
 import { TabletStudio, FantasyIcon } from "./tablet/TabletStudio";
 type View =
   | "home"
@@ -69,7 +70,7 @@ export function App() {
     [notation, setNotation] = useState("number"),
     [bpm, setBpm] = useState(70),
     [mode, setMode] = useState("wait"),
-    [source, setSource] = useState("mic"),
+    [source, setSource] = useState("screen"),
     [mic, setMic] = useState(false),
     [midiReady, setMidiReady] = useState(false),
     [message, setMessage] = useState("آماده‌ای؟ اولین نت را بزن."),
@@ -101,8 +102,7 @@ export function App() {
     indexRef = useRef(0),
     correctRef = useRef(0),
     wrongRef = useRef(0),
-    counting = useRef(false),
-    lastScreen = useRef(0);
+    counting = useRef(false);
   const steps =
       section < 0
         ? lesson.steps
@@ -153,7 +153,7 @@ export function App() {
     setBpm(l.bpm);
     setNotation(l.level < 2 ? "number" : l.level < 3 ? "name" : "staff");
     setSection(-1);
-    if (l.steps.some((s) => s.chord?.length)) setSource("midi");
+    setSource("screen");
     setView("practice");
   };
   const navigate = (v: View, stage?: string) => {
@@ -240,8 +240,7 @@ export function App() {
   handler.current = (m, s) => {
     if (s !== source || !runRef.current || counting.current || demo) return;
     const now = performance.now();
-    if (s === "screen" && now - lastScreen.current < 90) return;
-    lastScreen.current = now;
+
     setHeard(m);
     const expected = steps[indexRef.current];
     if (!expected) return;
@@ -422,27 +421,6 @@ export function App() {
     return () => clearInterval(id);
   }, [metronome, bpm]);
   useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (
-        view !== "practice" ||
-        source !== "screen" ||
-        e.repeat ||
-        ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(
-          (e.target as HTMLElement).tagName,
-        )
-      )
-        return;
-      const i = "asdfghjk".indexOf(e.key.toLowerCase());
-      if (i >= 0) {
-        const m = [60, 62, 64, 65, 67, 69, 71, 72][i];
-        void playNote(m);
-        handler.current(m, "screen");
-      }
-    };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [view, source]);
-  useEffect(() => {
     const hide = () => {
       if (document.hidden) stop();
     };
@@ -546,7 +524,9 @@ export function App() {
             >
               {icon}
               {label}
-              {v === "songs" && <span className="badge">{fa(songs.length)}</span>}
+              {v === "songs" && (
+                <span className="badge">{fa(songs.length)}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -606,8 +586,8 @@ export function App() {
                   <small>مخصوص کیبورد واقعی تو</small>
                   <b>بازی ریتم با کیبورد واقعی</b>
                   <span>
-                    {fa(stages.length)} مرحله از آسان تا آهنگ کامل؛ سرعت را خودت کم و زیاد
-                    کن.
+                    {fa(stages.length)} مرحله از آسان تا آهنگ کامل؛ سرعت را خودت
+                    کم و زیاد کن.
                   </span>
                 </span>
                 <span className="entry-cta">
@@ -879,12 +859,7 @@ export function App() {
                             setMessage("ورودی انتخاب شد؛ شروع تمرین را بزن.");
                           }}
                         >
-                          <option
-                            value="screen"
-                            disabled={lesson.steps.some((s) => s.chord?.length)}
-                          >
-                            پیانوی روی صفحه
-                          </option>
+                          <option value="screen">پیانوی روی صفحه</option>
                           <option
                             value="mic"
                             disabled={lesson.steps.some((s) => s.chord?.length)}
@@ -1061,87 +1036,23 @@ export function App() {
                         <Keyboard size={15} /> A S D F G H J K
                       </span>
                     </div>
-                    <div className="keyboard-scroll">
-                      <div className="piano-keys" dir="ltr">
-                        {(() => {
-                          const min = Math.min(
-                              60,
-                              ...steps.flatMap((s) => [
-                                s.midi,
-                                ...(s.chord || []),
-                              ]),
-                            ),
-                            max = Math.max(
-                              72,
-                              ...steps.flatMap((s) => [
-                                s.midi,
-                                ...(s.chord || []),
-                              ]),
-                            );
-                          const start = Math.floor(min / 12) * 12,
-                            end = Math.ceil((max + 1) / 12) * 12;
-                          const whites = Array.from(
-                            { length: end - start },
-                            (_, i) => start + i,
-                          ).filter((m) => ![1, 3, 6, 8, 10].includes(m % 12));
-                          return whites.map((m) => (
-                            <div className="key-wrap" key={m}>
-                              <button
-                                disabled={source !== "screen" || demo}
-                                aria-label={western(m)}
-                                className={
-                                  "white-key " +
-                                  (running &&
-                                  [
-                                    steps[index]?.midi,
-                                    ...(steps[index]?.chord || []),
-                                  ].includes(m)
-                                    ? "expected"
-                                    : "")
-                                }
-                                onClick={() => {
-                                  if (source === "screen" && !demo) {
-                                    void playNote(m);
-                                    handler.current(m, "screen");
-                                  }
-                                }}
-                              >
-                                <span>
-                                  {notation === "number"
-                                    ? keyNumber(m)
-                                    : noteName(m)}
-                                </span>
-                                <small>{western(m)}</small>
-                              </button>
-                              {[0, 2, 5, 7, 9].includes(m % 12) && (
-                                <button
-                                  disabled={source !== "screen" || demo}
-                                  aria-label={western(m + 1)}
-                                  className={
-                                    "black-key " +
-                                    (running &&
-                                    [
-                                      steps[index]?.midi,
-                                      ...(steps[index]?.chord || []),
-                                    ].includes(m + 1)
-                                      ? "expected"
-                                      : "")
-                                  }
-                                  onClick={() => {
-                                    if (source === "screen" && !demo) {
-                                      void playNote(m + 1);
-                                      handler.current(m + 1, "screen");
-                                    }
-                                  }}
-                                >
-                                  <small>{noteName(m + 1)}</small>
-                                </button>
-                              )}
-                            </div>
-                          ));
-                        })()}
-                      </div>
-                    </div>
+                    {source === "screen" && !demo ? (
+                      <TouchPiano
+                        steps={steps}
+                        onNote={(m) => handler.current(m, "screen")}
+                        onError={() =>
+                          setMessage(
+                            "صدای دستگاه پخش نشد؛ تنظیمات صدا را بررسی کن.",
+                          )
+                        }
+                      />
+                    ) : (
+                      <p className="muted">
+                        {demo
+                          ? "به نمایش گوش بده؛ بعد نوبت توست."
+                          : "برای نواختن روی تبلت، ورودی پیانوی روی صفحه را انتخاب کن."}
+                      </p>
+                    )}
                     <p className="muted">
                       چپ = صدای بم‌تر · راست = صدای زیرتر. برای ثبت امتیاز، اول
                       «شروع تمرین» را بزن.
@@ -1287,7 +1198,8 @@ export function App() {
                         .map((a, i) => (
                           <tr key={i}>
                             <td>
-                              {allLessons.find((l) => l.id === a.id)?.title || stages.find(s=>s.id===a.id)?.title ||
+                              {allLessons.find((l) => l.id === a.id)?.title ||
+                                stages.find((s) => s.id === a.id)?.title ||
                                 a.id}
                             </td>
                             <td>

@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 vi.mock("../src/audio", () => ({
   audioContext: vi.fn(async () => ({})),
+  startPianoNote: vi.fn(async () => () => {}),
   playNote: vi.fn(async () => {}),
   tick: vi.fn(async () => {}),
 }));
@@ -20,7 +21,14 @@ async function click(name: string) {
 }
 async function key(name: string) {
   await new Promise((r) => setTimeout(r, 100));
-  await click(name);
+  await act(async () => {
+    const button = screen.getByRole("button", {
+      name: "کلید " + name,
+      exact: true,
+    });
+    fireEvent.pointerDown(button, { pointerId: 1 });
+    fireEvent.pointerUp(button, { pointerId: 1 });
+  });
 }
 beforeEach(() => localStorage.clear());
 afterEach(cleanup);
@@ -29,7 +37,9 @@ describe("practice flows", () => {
     render(<App />);
     await click("استودیو");
     await click("بریم تمرین کنیم");
-    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
+    fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
+      target: { value: "screen" },
+    });
     await click("شروع تمرین");
     await key("D4");
     expect(screen.getByRole("status").textContent).toContain("رِ شنیدم");
@@ -51,7 +61,9 @@ describe("practice flows", () => {
     render(<App />);
     await click("استودیو");
     await click("بریم تمرین کنیم");
-    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
+    fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
+      target: { value: "screen" },
+    });
     fireEvent.change(
       screen.getByRole("combobox", { name: "انتخاب بخش تمرین" }),
       { target: { value: "0" } },
@@ -68,7 +80,9 @@ describe("practice flows", () => {
     render(<App />);
     await click("استودیو");
     await click("بریم تمرین کنیم");
-    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
+    fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
+      target: { value: "screen" },
+    });
     await click("اول گوش بده");
     await act(async () => {
       vi.advanceTimersByTime(10000);
@@ -89,7 +103,9 @@ describe("practice flows", () => {
     render(<App />);
     await click("استودیو");
     await click("بریم تمرین کنیم");
-    fireEvent.change(screen.getByRole("combobox", {name:"ورودی"}),{target:{value:"screen"}});
+    fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
+      target: { value: "screen" },
+    });
     fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
       target: { value: "mic" },
     });
@@ -116,6 +132,9 @@ describe("practice flows", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("با هم، در یک لحظه").closest("button")!);
     });
+    fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
+      target: { value: "midi" },
+    });
     await click("اتصال پیانوی MIDI");
     await click("شروع تمرین");
     const send = async (m: number) => {
@@ -134,6 +153,30 @@ describe("practice flows", () => {
     expect(
       JSON.parse(localStorage.getItem("mahour-attempts")!)[0],
     ).toMatchObject({ source: "midi", correct: 4, accuracy: 100 });
+  });
+  it("touch chord exercises include bass keys and score groups without MIDI", async () => {
+    render(<App />);
+    await click("استودیو");
+    await click("مسیر یادگیری");
+    await act(async () => {
+      fireEvent.click(screen.getByText("با هم، در یک لحظه").closest("button")!);
+    });
+    expect(
+      (screen.getByRole("combobox", { name: "ورودی" }) as HTMLSelectElement)
+        .value,
+    ).toBe("screen");
+    await click("شروع تمرین");
+    await key("C4");
+    expect(screen.getByText("۰ از ۴ نت")).toBeTruthy();
+    await key("C3");
+    expect(screen.getByText("۱ از ۴ نت")).toBeTruthy();
+    for (const note of ["E4", "G4", "E4"]) {
+      await key(note);
+      await key("C3");
+    }
+    expect(
+      JSON.parse(localStorage.getItem("mahour-attempts")!)[0],
+    ).toMatchObject({ source: "screen", correct: 4, accuracy: 100 });
   });
   it("loads saved progress after remount", async () => {
     localStorage.setItem(

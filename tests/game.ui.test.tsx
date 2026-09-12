@@ -1,7 +1,7 @@
 import React from "react";
 import { it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
-  render,
+  render as baseRender,
   screen,
   fireEvent,
   act,
@@ -29,6 +29,20 @@ vi.mock("../src/tablet/useMicrophone", () => ({
     };
   },
 }));
+
+vi.mock("../src/audio", () => ({
+  audioContext: vi.fn(async () => ({})),
+  startPianoNote: vi.fn(async () => () => {}),
+}));
+function render(ui: React.ReactNode) {
+  const result = baseRender(ui);
+  const button = screen.queryByRole("button", {
+    name: "کیبورد واقعی · میکروفون",
+  });
+  if (button) fireEvent.click(button);
+  return result;
+}
+
 import { RhythmGame } from "../src/game/RhythmGame";
 import { stages, schedule, readSpeed } from "../src/game/engine";
 beforeEach(() => {
@@ -264,14 +278,10 @@ it("a learned offset is applied to every note the stage asks for", async () => {
 
 it("a song opened from the library goes straight to its falling notes, unlocked", async () => {
   render(
-    <RhythmGame
-      onExit={() => {}}
-      onSave={() => {}}
-      openStage="concert-fate"
-    />,
+    <RhythmGame onExit={() => {}} onSave={() => {}} openStage="concert-fate" />,
   );
   await act(async () => {});
   // The concert stages sit at the very end of the map and are normally locked.
-  expect(io.start).toHaveBeenCalled();
+  expect(io.start).not.toHaveBeenCalled();
   expect(screen.getByText("همین‌جا بزن")).toBeTruthy();
 });

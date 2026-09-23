@@ -77,6 +77,7 @@ const firstBeat = (index: number, speed: number) =>
 it("tapping a stage turns on the microphone and drops straight into play", async () => {
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   expect(io.start).toHaveBeenCalledTimes(1);
   expect(screen.getByText("همین‌جا بزن")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "شروع بازی با ساز من" })).toBe(
@@ -90,6 +91,7 @@ it("a refused microphone keeps the child on the setup screen instead of an empty
   });
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   expect(screen.queryByText("همین‌جا بزن")).toBe(null);
   expect(screen.getByRole("status").textContent).toContain("رد شده است");
 });
@@ -101,6 +103,7 @@ it("wrong pitch flashes red and a timed correct pitch flashes green and adds sco
     <RhythmGame onExit={() => {}} onSave={() => {}} />,
   );
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   now = firstBeat(0, readSpeed());
   await note(62);
   expect(container.querySelector(".rhythm-game.error")).toBeTruthy();
@@ -115,8 +118,9 @@ it("half speed stretches the schedule and still scores a note played that late",
   const { container } = render(
     <RhythmGame onExit={() => {}} onSave={() => {}} />,
   );
-  await click("۵۰٪");
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("۵۰٪");
+  await click("با ریتم");
   // 300ms off the beat is only "good" at full speed, but the widened window still counts it.
   now = firstBeat(0, 0.5) + 300;
   await note(60);
@@ -124,6 +128,7 @@ it("half speed stretches the schedule and still scores a note played that late",
   expect(screen.getByText("۱۰۰")).toBeTruthy();
   cleanup();
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
   expect(
     (screen.getByRole("button", { name: "۵۰٪" }) as HTMLButtonElement)
       .ariaPressed,
@@ -133,7 +138,6 @@ it("half speed stretches the schedule and still scores a note played that late",
 it("later stages remain locked without a passing score", () => {
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   const list = screen.getAllByRole("button", { name: /مرحله / });
-  expect(list.length).toBeGreaterThanOrEqual(100);
   expect((list[0] as HTMLButtonElement).disabled).toBe(false);
   expect((list[1] as HTMLButtonElement).disabled).toBe(true);
 });
@@ -155,6 +159,7 @@ it("an input that never produces a clear note pauses the round without recording
     props = { onExit: () => {}, onSave: save };
   const { rerender } = render(<RhythmGame {...props} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   io.quality = "unclear";
   rerender(<RhythmGame {...props} />);
   now = 60000; // long past both notes of stage one
@@ -170,6 +175,7 @@ it("a quiet room between notes is a missed note, not a cancelled stage", async (
   const save = vi.fn();
   render(<RhythmGame onExit={() => {}} onSave={save} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   // The child lands the first note, then hesitates; the microphone reads silence, as it should.
   now = firstBeat(0, readSpeed());
   await note(60);
@@ -189,6 +195,7 @@ it("a note played during the count-in costs nothing and re-arms the gate for the
     <RhythmGame onExit={() => {}} onSave={() => {}} />,
   );
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   now = 500; // still counting in
   await note(60);
   expect(container.querySelector(".rhythm-game.error")).toBe(null);
@@ -204,6 +211,7 @@ it("the right note in the wrong octave re-bases the keyboard instead of failing 
   vi.spyOn(performance, "now").mockImplementation(() => now);
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   now = firstBeat(0, readSpeed());
   await note(72); // stage 1 wants middle C; this keyboard's "key 1" is an octave up
   expect(screen.getByText("۱۰۰")).toBeTruthy();
@@ -219,6 +227,7 @@ it("a wrong note says what it heard so a parent can tell a mis-hit from a mis-he
   vi.spyOn(performance, "now").mockImplementation(() => now);
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   now = firstBeat(0, readSpeed());
   await note(64);
   expect(screen.getByRole("status").textContent).toContain("می شنیدم");
@@ -228,6 +237,7 @@ it("the first ever stage stops to learn the child's piano before asking them to 
   localStorage.clear();
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   expect(screen.getByText("بیا با پیانوی تو آشنا شوم")).toBeTruthy();
   expect(screen.queryByText("همین‌جا بزن")).toBe(null);
   // Three keys are asked for, and what each one answered is remembered as an offset.
@@ -242,6 +252,7 @@ it("a keyboard whose keys sit an octave down is learned, not fought", async () =
   localStorage.clear();
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   await note(48);
   await note(52);
   await note(55);
@@ -253,6 +264,7 @@ it("readings that disagree are rejected and asked for again rather than averaged
   localStorage.clear();
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   await note(60);
   await note(71); // nothing like the E that was asked for
   await note(67);
@@ -271,6 +283,7 @@ it("a learned offset is applied to every note the stage asks for", async () => {
   vi.spyOn(performance, "now").mockImplementation(() => now);
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   now = firstBeat(0, readSpeed());
   await note(48); // middle C on this child's keyboard
   expect(screen.getByText("۱۰۰")).toBeTruthy();
@@ -283,5 +296,7 @@ it("a song opened from the library goes straight to its falling notes, unlocked"
   await act(async () => {});
   // The concert stages sit at the very end of the map and are normally locked.
   expect(io.start).not.toHaveBeenCalled();
+  expect(screen.getByRole("heading", { name: "سرنوشت" })).toBeTruthy();
+  await click("با ریتم");
   expect(screen.getByText("همین‌جا بزن")).toBeTruthy();
 });

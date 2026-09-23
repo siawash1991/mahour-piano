@@ -35,7 +35,7 @@ afterEach(cleanup);
 describe("practice flows", () => {
   it("records wrong notes, completes first lesson and persists report", async () => {
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     await click("بریم تمرین کنیم");
     fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
       target: { value: "screen" },
@@ -59,7 +59,7 @@ describe("practice flows", () => {
   });
   it("partial practice does not mark the entire lesson complete", async () => {
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     await click("بریم تمرین کنیم");
     fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
       target: { value: "screen" },
@@ -78,7 +78,7 @@ describe("practice flows", () => {
   it("demo never adds progress, and stops on navigation", async () => {
     vi.useFakeTimers();
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     await click("بریم تمرین کنیم");
     fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
       target: { value: "screen" },
@@ -101,7 +101,7 @@ describe("practice flows", () => {
       },
     });
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     await click("بریم تمرین کنیم");
     fireEvent.change(screen.getByRole("combobox", { name: "ورودی" }), {
       target: { value: "screen" },
@@ -127,7 +127,7 @@ describe("practice flows", () => {
       })),
     });
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     await click("مسیر یادگیری");
     await act(async () => {
       fireEvent.click(screen.getByText("با هم، در یک لحظه").closest("button")!);
@@ -156,7 +156,7 @@ describe("practice flows", () => {
   });
   it("touch chord exercises include bass keys and score groups without MIDI", async () => {
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     await click("مسیر یادگیری");
     await act(async () => {
       fireEvent.click(screen.getByText("با هم، در یک لحظه").closest("button")!);
@@ -197,7 +197,7 @@ describe("practice flows", () => {
       ]),
     );
     render(<App />);
-    await click("استودیو");
+    await click("بخش والدین");
     expect(screen.getByText("۱ تمرین کامل")).toBeTruthy();
     expect(
       screen.getByRole("heading", { name: "سه دوست کنار هم" }),

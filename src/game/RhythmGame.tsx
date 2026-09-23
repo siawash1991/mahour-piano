@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Mic,
   Piano,
@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 import { useMicrophone } from "../tablet/useMicrophone";
 import { readTuning, saveTuning, resolve, TUNING_KEYS } from "./tuning";
-import { fa, noteName, western } from "../curriculum";
-import { FantasyIcon } from "../tablet/TabletStudio";
+import { fa, noteName, western, songs } from "../curriculum";
 import {
   stages,
   worldList,
@@ -30,13 +29,15 @@ import {
   lead,
   board,
   keyLabel,
+  noteColor,
   type Stage,
   type Key,
+  type Mode,
 } from "./engine";
 import type { Attempt } from "../storage";
 import "./game.css";
 import { TouchPiano } from "./TouchPiano";
-import { audioContext } from "../audio";
+import { audioContext, playNote } from "../audio";
 type RecordMap = Record<string, { score: number; stars: number }>;
 function load(): RecordMap {
   try {
@@ -56,6 +57,51 @@ function load(): RecordMap {
   }
 }
 const percent = (s: number) => fa(Math.round(s * 100)) + "٪";
+const BRICKS = ["#e3000b", "#ffcd00", "#0a6cd6", "#00a650", "#ff8a00", "#8e44ad"];
+const PRAISE = ["آفرین! ✨", "عالی! 🎉", "همینه! 💪", "درست زدی! ⭐", "ایول! 🚀"];
+const MODES: Record<Mode, { icon: string; name: string; hint: string }> = {
+  listen: { icon: "👂", name: "گوش بده", hint: "اول ببین و بشنو آهنگ چطوری است" },
+  learn: { icon: "🐢", name: "آروم با من", hint: "آجرها صبر می‌کنند تا کلید درست را بزنی" },
+  rhythm: { icon: "⚡", name: "با ریتم", hint: "به‌موقع بزن و سه ستاره بگیر" },
+};
+/** A little robot built out of bricks, who cheers the child on. */
+export function BrickBuddy({ cheer = false }: { cheer?: boolean }) {
+  return (
+    <svg className={"brick-buddy" + (cheer ? " cheer" : "")} viewBox="0 0 120 130" aria-hidden="true">
+      <g className="arms">
+        <rect x="6" y="72" width="20" height="12" rx="4" fill="#ffcd00" transform={cheer ? "rotate(-50 26 78)" : ""} />
+        <rect x="94" y="72" width="20" height="12" rx="4" fill="#ffcd00" transform={cheer ? "rotate(50 94 78)" : ""} />
+      </g>
+      <rect x="26" y="64" width="68" height="46" rx="6" fill="#e3000b" />
+      <circle cx="46" cy="87" r="7" fill="#b3000a" />
+      <circle cx="74" cy="87" r="7" fill="#b3000a" />
+      <rect x="34" y="110" width="20" height="16" rx="3" fill="#0a6cd6" />
+      <rect x="66" y="110" width="20" height="16" rx="3" fill="#0a6cd6" />
+      <rect x="44" y="4" width="32" height="12" rx="3" fill="#ffcd00" />
+      <rect x="24" y="14" width="72" height="50" rx="10" fill="#ffcd00" />
+      <circle cx="46" cy="36" r="6" fill="#222" />
+      <circle cx="74" cy="36" r="6" fill="#222" />
+      <circle cx="48" cy="34" r="2" fill="#fff" />
+      <circle cx="76" cy="34" r="2" fill="#fff" />
+      <path d={cheer ? "M44 48 Q60 62 76 48 Z" : "M46 49 Q60 58 74 49"} fill={cheer ? "#222" : "none"} stroke="#222" strokeWidth="3.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+/** Every star the child has ever earned becomes a brick in their tower. */
+function Tower({ count }: { count: number }) {
+  const shown = Math.min(count, 36);
+  return (
+    <div className="tower" aria-label={`برج آجری: ${fa(count)} آجر`}>
+      <div className="tower-bricks">
+        {Array.from({ length: shown }, (_, i) => (
+          <i key={i} style={{ background: BRICKS[Math.floor(i / 3) % BRICKS.length] }} />
+        ))}
+      </div>
+      <b>{fa(count)} آجر</b>
+      <small>{fa(3 - (count % 3))} ستارهٔ دیگر تا طبقهٔ بعد</small>
+    </div>
+  );
+}
 export function RhythmGame({
   onExit,
   onSave,
@@ -68,8 +114,13 @@ export function RhythmGame({
 }) {
   const [input, setInput] = useState<"touch" | "mic">("touch");
   const [screen, setScreen] = useState<
-      "map" | "tune" | "ready" | "play" | "result"
+      "map" | "intro" | "tune" | "ready" | "play" | "result"
     >("map"),
+    [tab, setTab] = useState<"path" | "songs">("path"),
+    [openWorld, setOpenWorld] = useState<number | null>(null),
+    [openSong, setOpenSong] = useState<string | null>(null),
+    [mode, setMode] = useState<Mode>("rhythm"),
+    [earned, setEarned] = useState(0),
     [selected, setSelected] = useState(0),
     [records, setRecords] = useState(load),
     [offset, setOffset] = useState(() => readTuning() ?? 0),
@@ -77,7 +128,7 @@ export function RhythmGame({
     [asked, setAsked] = useState(0),
     [replies, setReplies] = useState<number[]>([]),
     [speed, setSpeedState] = useState(readSpeed),
-    [status, setStatus] = useState("روی هر مرحله بزن؛ بازی خودش شروع می‌شود."),
+    [status, setStatus] = useState(""),
     [heard, setHeard] = useState<number | null>(null),
     [time, setTime] = useState(0),
     [feedback, setFeedback] = useState(""),
@@ -85,7 +136,8 @@ export function RhythmGame({
     [score, setScore] = useState(0),
     [hits, setHits] = useState(0),
     [combo, setCombo] = useState(0),
-    [resolved, setResolved] = useState<Set<number>>(new Set());
+    [resolved, setResolved] = useState<Set<number>>(new Set()),
+    [bursts, setBursts] = useState<{ id: number; midi: number }[]>([]);
   const effectiveOffset = input === "touch" ? 0 : offset;
   const live = useRef(false),
     listening = useRef(false),
@@ -97,6 +149,8 @@ export function RhythmGame({
     points = useRef(0),
     streak = useRef(0),
     errors = useRef(0),
+    slipped = useRef(false),
+    burstId = useRef(0),
     clear = useRef(false),
     tuning = useRef(false),
     answers = useRef<number[]>([]),
@@ -107,9 +161,18 @@ export function RhythmGame({
   const run = useRef<{
     stage: Stage;
     times: number[];
+    lengths: number[];
     tol: number;
     keys: Key[];
-  }>({ stage: stages[0], times: [], tol: 1, keys: board(stages[0].steps) });
+    mode: Mode;
+  }>({
+    stage: stages[0],
+    times: [],
+    lengths: [],
+    tol: 1,
+    keys: board(stages[0].steps),
+    mode: "rhythm",
+  });
   const stage = stages[selected];
   const mic = useMicrophone(
     (m) => handler.current(m),
@@ -124,6 +187,11 @@ export function RhythmGame({
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(""), 450);
   };
+  const burst = (midi: number) => {
+    const id = ++burstId.current;
+    setBursts((b) => [...b, { id, midi }]);
+    setTimeout(() => setBursts((b) => b.filter((x) => x.id !== id)), 700);
+  };
   const stop = () => {
     epoch.current++;
     live.current = false;
@@ -137,12 +205,16 @@ export function RhythmGame({
     saveSpeed(n);
   };
   const finish = () => {
-    const { stage: s } = run.current;
+    const { stage: s, mode: how } = run.current;
     live.current = false;
     mic.stop();
     cancelAnimationFrame(clock.current);
     setScreen("result");
-    const n = stars(hit.current, s.steps.length);
+    // Listening is a demonstration: nothing is scored, saved or unlocked.
+    if (how === "listen") return setEarned(0);
+    // Finishing the patient mode always earns the first star; rhythm earns the other two.
+    const n = how === "learn" ? 1 : stars(hit.current, s.steps.length);
+    setEarned(n);
     const next = {
       ...records,
       [s.id]: {
@@ -161,12 +233,16 @@ export function RhythmGame({
       at: new Date().toISOString(),
       correct: hit.current,
       wrong: errors.current,
-      accuracy: Math.round((hit.current / s.steps.length) * 100),
+      accuracy: Math.round(
+        (100 * hit.current) /
+          (how === "learn" ? hit.current + errors.current || 1 : s.steps.length),
+      ),
       seconds: Math.round((performance.now() - start.current) / 1000),
       source: input === "touch" ? "screen" : "mic",
       partial: false,
-      mode: "falling-notes",
-      rhythm: Math.round((hit.current / s.steps.length) * 100),
+      mode: how === "learn" ? "wait-mode" : "falling-notes",
+      rhythm:
+        how === "learn" ? null : Math.round((hit.current / s.steps.length) * 100),
       baseMidi: 60 + effectiveOffset,
     });
   };
@@ -203,28 +279,38 @@ export function RhythmGame({
       setStatus("آماده‌ام. کلید را آرام بزن و بگذار صدایش تمام شود.");
     }
   };
-  const begin = (index = selected) => {
+  const begin = (index = selected, how: Mode = mode) => {
     const s = stages[index];
     const tol = tolerance(speed),
-      window = windowFor(tol);
+      window = windowFor(tol),
+      beat = 60000 / (s.bpm * speed);
     const times = schedule(
       s.steps.map((step) => step.beats),
       s.bpm * speed,
     );
-    run.current = { stage: s, times, tol, keys: board(s.steps) };
-    clear.current = input === "touch";
+    const lengths = s.steps.map((step) => step.beats * beat);
+    run.current = { stage: s, times, lengths, tol, keys: board(s.steps), mode: how };
+    clear.current = input === "touch" || how !== "rhythm";
     listening.current = false;
     done.current = new Set();
     hit.current = 0;
     points.current = 0;
     streak.current = 0;
     errors.current = 0;
+    slipped.current = false;
     setScore(0);
     setHits(0);
     setCombo(0);
     setResolved(new Set());
+    setBursts([]);
     setTime(0);
-    setFeedback("وقتی شماره به خط طلایی رسید، کلیدش را بزن");
+    setFeedback(
+      how === "listen"
+        ? "نگاه کن و گوش بده؛ پیانو خودش می‌زند 🎶"
+        : how === "learn"
+          ? "هر آجر روی خط زرد منتظرت می‌ماند؛ کلید هم‌رنگش را بزن"
+          : "وقتی آجر به خط زرد رسید، کلیدش را بزن",
+    );
     setFlash("");
     start.current = performance.now();
     live.current = true;
@@ -232,29 +318,49 @@ export function RhythmGame({
     const deaf = Math.min(3, times.length);
     const frame = () => {
       if (!live.current) return;
-      const elapsed = performance.now() - start.current;
-      setTime(elapsed);
-      if (signal.current === "clear") clear.current = true;
-      times.forEach((at, i) => {
-        if (elapsed > at + window && !done.current.has(i)) {
-          done.current.add(i);
-          errors.current++;
-          streak.current = 0;
-          setCombo(0);
-          setResolved(new Set(done.current));
-          pulse(false, "این نت جا ماند؛ بعدی را بگیر!");
+      const now = performance.now();
+      let elapsed = now - start.current;
+      if (how === "learn") {
+        // Wait mode: the clock stops with the next brick sitting on the line until it is played.
+        const n = times.findIndex((_, i) => !done.current.has(i));
+        if (n >= 0 && elapsed > times[n]) {
+          start.current = now - times[n];
+          elapsed = times[n];
         }
-      });
-      // Bail out only for an input that has never once produced a clear note — silence between
-      // notes is normal, and a child who hesitates deserves a missed note, not a cancelled stage.
-      if (!clear.current && done.current.size >= deaf) {
-        stop();
-        setScreen("ready");
-        setHeard(null);
-        setStatus(
-          "هیچ صدای واضحی از ساز نرسید؛ بازی بدون ثبت شکست متوقف شد. ورودی و حساسیت را بررسی کن و دوباره شروع کن.",
-        );
-        return;
+      }
+      setTime(elapsed);
+      if (how === "listen")
+        times.forEach((at, i) => {
+          if (elapsed >= at && !done.current.has(i)) {
+            done.current.add(i);
+            setResolved(new Set(done.current));
+            burst(s.steps[i].midi);
+            void playNote(s.steps[i].midi, Math.min(1.6, (lengths[i] / 1000) * 0.9)).catch(() => {});
+          }
+        });
+      if (how === "rhythm") {
+        if (signal.current === "clear") clear.current = true;
+        times.forEach((at, i) => {
+          if (elapsed > at + window && !done.current.has(i)) {
+            done.current.add(i);
+            errors.current++;
+            streak.current = 0;
+            setCombo(0);
+            setResolved(new Set(done.current));
+            pulse(false, "این یکی جا ماند؛ بعدی را بگیر!");
+          }
+        });
+        // Bail out only for an input that has never once produced a clear note — silence between
+        // notes is normal, and a child who hesitates deserves a missed note, not a cancelled stage.
+        if (!clear.current && done.current.size >= deaf) {
+          stop();
+          setScreen("ready");
+          setHeard(null);
+          setStatus(
+            "هیچ صدای واضحی از ساز نرسید؛ بازی بدون ثبت شکست متوقف شد. ورودی و حساسیت را بررسی کن و دوباره شروع کن.",
+          );
+          return;
+        }
       }
       if (
         done.current.size === times.length &&
@@ -266,6 +372,23 @@ export function RhythmGame({
       clock.current = requestAnimationFrame(frame);
     };
     clock.current = requestAnimationFrame(frame);
+  };
+  const score1 = (index: number, gain: number, text: string, midi: number) => {
+    done.current.add(index);
+    hit.current++;
+    streak.current++;
+    points.current += gain;
+    setScore(points.current);
+    setHits(hit.current);
+    setCombo(streak.current);
+    setResolved(new Set(done.current));
+    burst(midi);
+    pulse(
+      true,
+      streak.current >= 5 && streak.current % 5 === 0
+        ? `${fa(streak.current)} تا پشت سر هم! 🔥`
+        : text,
+    );
   };
   handler.current = (m) => {
     setHeard(m);
@@ -305,14 +428,50 @@ export function RhythmGame({
       return;
     }
     if (!live.current) return;
-    const { stage: s, times, tol } = run.current;
+    const { stage: s, times, tol, mode: how } = run.current;
+    if (how === "listen") return;
     const window = windowFor(tol);
     const elapsed = performance.now() - start.current;
     // The count-in is free warm-up: notes played before the first one is even catchable are
     // neither judged nor counted, and the gate is re-armed so the real attempt still lands.
     if (elapsed < times[0] - window) {
       if (input === "mic") mic.rearm();
-      setFeedback("صبر کن تا شماره به خط طلایی برسد");
+      setFeedback("صبر کن تا آجر به خط زرد برسد");
+      return;
+    }
+    const rebase = (octave: number) => {
+      // Playing the right note an octave out settles which octave the keyboard sits in, so the
+      // guide and the notes still to come line up with what the child is actually touching.
+      if (octave && input === "mic") {
+        setOffset(offset + octave);
+        saveTuning(offset + octave);
+      }
+    };
+    if (how === "learn") {
+      const n = times.findIndex((_, i) => !done.current.has(i));
+      if (n < 0) return;
+      const want = s.steps[n].midi + effectiveOffset;
+      if (elapsed < times[n] - window) {
+        if (input === "mic") mic.rearm();
+        setFeedback("صبر کن تا آجر به خط زرد برسد 🙂");
+        return;
+      }
+      const octave =
+        input === "mic" && m !== want && (m - want) % 12 === 0 ? m - want : 0;
+      if (m === want || octave) {
+        rebase(octave);
+        score1(n, slipped.current ? 50 : 100, PRAISE[hit.current % PRAISE.length], s.steps[n].midi);
+        slipped.current = false;
+      } else {
+        errors.current++;
+        slipped.current = true;
+        streak.current = 0;
+        setCombo(0);
+        pulse(
+          false,
+          `${noteName(m)} زدی؛ کلید ${keyLabel(s.steps[n].midi)} (${noteName(s.steps[n].midi)}) را بزن — همان که می‌درخشد`,
+        );
+      }
       return;
     }
     const pending = s.steps
@@ -330,24 +489,16 @@ export function RhythmGame({
       input === "mic",
     );
     if (!pick) return;
-    // Playing the right note an octave out settles which octave the keyboard sits in, so the
-    // guide and the notes still to come line up with what the child is actually touching.
-    if (octave && input === "mic") {
-      setOffset(offset + octave);
-      saveTuning(offset + octave);
-    }
+    rebase(octave);
     const delta = elapsed - pick.at;
     if (matched) {
-      done.current.add(pick.index);
-      hit.current++;
-      streak.current++;
       const perfect = Math.abs(delta) <= PERFECT * tol;
-      points.current += perfect ? 100 : 60;
-      setScore(points.current);
-      setHits(hit.current);
-      setCombo(streak.current);
-      setResolved(new Set(done.current));
-      pulse(true, perfect ? "عالی! دقیق روی ضرب ✨" : "درست بود!");
+      score1(
+        pick.index,
+        perfect ? 100 : 60,
+        perfect ? "عالی! دقیق روی ضرب ✨" : "درست بود! 👍",
+        s.steps[pick.index].midi,
+      );
     } else {
       errors.current++;
       streak.current = 0;
@@ -358,7 +509,7 @@ export function RhythmGame({
           ? `${noteName(m)} شنیدم؛ کلید ${keyLabel(s.steps[pick.index].midi)} را بزن`
           : delta < 0
             ? "کمی زود بود؛ صبر کن به خط برسد"
-            : "دیر شد؛ شمارهٔ بعدی را دنبال کن",
+            : "دیر شد؛ آجر بعدی را دنبال کن",
       );
     }
   };
@@ -366,8 +517,7 @@ export function RhythmGame({
     const hide = () => {
       if (document.hidden) {
         stop();
-        setScreen((s) => (s === "play" ? "ready" : s));
-        setStatus("تمرین متوقف شد؛ برای ادامه دوباره «شروع» را بزن.");
+        setScreen((s) => (s === "play" ? "intro" : s));
       }
     };
     document.addEventListener("visibilitychange", hide);
@@ -380,7 +530,12 @@ export function RhythmGame({
     };
   }, []);
   useEffect(() => {
-    if (screen === "play" && input === "mic" && !mic.active) {
+    if (
+      screen === "play" &&
+      input === "mic" &&
+      run.current.mode !== "listen" &&
+      !mic.active
+    ) {
       stop();
       setScreen("ready");
       setStatus(
@@ -391,37 +546,48 @@ export function RhythmGame({
   const unlocked = (i: number) =>
     i === 0 || (records[stages[i - 1].id]?.stars ?? 0) >= 1;
   const next = stages.findIndex((s, i) => unlocked(i) && !records[s.id]?.stars);
+  const currentWorld = openWorld ?? stages[Math.max(0, next)].world;
+  const totalStars = Object.values(records).reduce((n, r) => n + r.stars, 0);
   const opened = useRef(false);
   useEffect(() => {
     if (openStage && !opened.current) {
       opened.current = true;
       const i = stages.findIndex((s) => s.id === openStage);
-      if (i >= 0) void choose(i);
+      if (i >= 0) choose(i);
     }
   }, [openStage]);
   useEffect(() => {
     // Only jump into the map once there is progress to jump to; a fresh child starts at the top.
-    if (screen === "map" && next > 0)
+    if (screen === "map" && tab === "path" && next > 0)
       resume.current?.scrollIntoView?.({ block: "center" });
-  }, [screen, next]);
+  }, [screen, next, tab]);
   useEffect(() => {
     if (screen === "play")
       document
         .querySelector(".rhythm-game")
         ?.scrollIntoView?.({ block: "start" });
   }, [screen]);
-  /** One tap starts touch audio or connects the selected physical input. */
-  const choose = async (i: number) => {
+  /** Tapping a stage opens its card, where the child picks how to play it. */
+  const choose = (i: number) => {
     stop();
     setSelected(i);
     setHeard(null);
-    // The very first time, learn the child's piano before asking them to play against it.
-    if (input === "touch") {
+    setStatus("");
+    setScreen("intro");
+  };
+  /** One tap starts touch audio or connects the selected physical input. */
+  const startMode = async (how: Mode, i = selected) => {
+    stop();
+    setMode(how);
+    setSelected(i);
+    setHeard(null);
+    // A demonstration never listens, so it needs no microphone and no introduction to the piano.
+    if (input === "touch" || how === "listen") {
       setScreen("ready");
       const token = epoch.current;
       try {
         await audioContext();
-        if (token === epoch.current) begin(i);
+        if (token === epoch.current) begin(i, how);
       } catch {
         setStatus(
           "صدا فعال نشد؛ صدای دستگاه را بررسی کن و دوباره شروع را بزن.",
@@ -429,9 +595,10 @@ export function RhythmGame({
       }
       return;
     }
+    // The very first time, learn the child's piano before asking them to play against it.
     if (!tuned) return void tune();
     setScreen("ready");
-    if (await connect()) begin(i);
+    if (await connect()) begin(i, how);
   };
   const speedPicker = (
     <div className="speed-picker" role="group" aria-label="سرعت تمرین">
@@ -448,17 +615,75 @@ export function RhythmGame({
         </button>
       ))}
       <small>
-        {speed === 1 ? "سرعت واقعی آهنگ" : "تمرین آرام؛ فرصت بیشتر برای هر نت"}
+        {speed === 1 ? "سرعت واقعی آهنگ 🐇" : "آرام‌تر؛ فرصت بیشتر برای هر نت 🐢"}
       </small>
     </div>
   );
+  const stageButton = (i: number, free = false, label?: string) => {
+    const s = stages[i],
+      locked = !free && !unlocked(i),
+      r = records[s.id],
+      short =
+        label ??
+        (s.title.replace(worldList[s.world].title, "").replace(/^ · /, "").trim() ||
+          fa(i + 1));
+    return (
+      <div className="stage-slot" key={s.id}>
+        <button
+          ref={!free && i === next ? resume : undefined}
+          disabled={locked}
+          className={`stage-brick ${r?.stars ? "won" : ""} ${!free && i === next ? "next" : ""}`}
+          style={{ "--c": BRICKS[s.world % BRICKS.length] } as React.CSSProperties}
+          onClick={() => choose(i)}
+          aria-label={`مرحله ${i + 1}: ${s.title}`}
+        >
+          <span>{locked ? <Lock /> : short}</span>
+        </button>
+        <small className="stage-stars">
+          {[0, 1, 2].map((n) => (
+            <i key={n} className={(r?.stars ?? 0) > n ? "on" : ""}>
+              ★
+            </i>
+          ))}
+        </small>
+      </div>
+    );
+  };
+  const modeButton = (how: Mode, primary = false) => (
+    <button
+      key={how}
+      className={`mode-card ${how} ${primary ? "primary" : ""}`}
+      aria-label={MODES[how].name}
+      onClick={() => void startMode(how)}
+    >
+      <span className="mode-icon">{MODES[how].icon}</span>
+      <b>{MODES[how].name}</b>
+      <small>{MODES[how].hint}</small>
+      {primary && <em>پیشنهاد من</em>}
+    </button>
+  );
+  const recommended: Mode = records[stage.id]?.stars ? "rhythm" : "learn";
+  // Keys to glow: the demo's note, the brick waiting on the line, or any brick inside its window.
+  const { times: rt, lengths: rl, stage: rs, mode: rm, tol: rtol } = run.current;
+  const lit =
+    screen !== "play"
+      ? []
+      : rs.steps
+          .filter((_, i) =>
+            rm === "listen"
+              ? time >= rt[i] && time < rt[i] + rl[i] * 0.85
+              : rm === "learn"
+                ? i === rt.findIndex((_, j) => !resolved.has(j)) && rt[i] - time < 900
+                : !resolved.has(i) && Math.abs(rt[i] - time) < windowFor(rtol) * 0.6,
+          )
+          .map((s) => s.midi);
   return (
     <div
       className={`rhythm-game ${flash} ${input === "touch" ? "touch-mode" : ""}`}
     >
       <header className="game-header">
         <button
-          className="small-button"
+          className="brick-button small"
           onClick={() => {
             stop();
             if (screen === "map") onExit();
@@ -466,104 +691,210 @@ export function RhythmGame({
           }}
         >
           <ArrowRight />
-          {screen === "map" ? "استودیو" : "نقشهٔ مراحل"}
+          {screen === "map" ? "بخش والدین" : "نقشه"}
         </button>
-        <b>ماهور · سرزمین موسیقی</b>
-        <span>
-          ★ {fa(Object.values(records).reduce((n, r) => n + r.score, 0))} امتیاز
-        </span>
+        <b className="logo">
+          <i />
+          ماهور و شهر آجری موسیقی
+        </b>
+        <span className="star-count">⭐ {fa(totalStars)}</span>
       </header>
       {screen === "map" ? (
         <div className="world-map">
-          <FantasyIcon name="coach" />
-          <h1>{fa(stages.length)} مرحله تا نوازندگی</h1>
-          <p>
-            {input === "touch"
-              ? "روی مرحله بزن و با پیانوی زیر بازی بنواز؛ میکروفون لازم نیست."
-              : "روی مرحله بزن؛ میکروفون روشن می‌شود و بازی شروع می‌شود."}
-          </p>
-          {speedPicker}
-          <div className="input-choice" role="group" aria-label="روش نواختن">
+          <section className="hero-card">
+            <BrickBuddy cheer={totalStars > 0} />
+            <div>
+              <h1>سلام ماهور! 👋</h1>
+              <p>
+                {next >= 0
+                  ? `مرحلهٔ بعدی: ${stages[next].title}`
+                  : "همهٔ مرحله‌ها را ساختی! حالا آهنگ‌ها را با ریتم بزن."}
+              </p>
+              {next >= 0 && (
+                <button className="brick-button big" onClick={() => choose(next)}>
+                  <Play /> ادامه بده
+                </button>
+              )}
+            </div>
+            <Tower count={totalStars} />
+          </section>
+          <div className="tabs" role="tablist">
             <button
-              className={input === "touch" ? "on" : ""}
-              aria-pressed={input === "touch"}
-              onClick={() => {
-                stop();
-                setInput("touch");
-              }}
+              role="tab"
+              aria-selected={tab === "path"}
+              className={tab === "path" ? "on" : ""}
+              onClick={() => setTab("path")}
             >
-              پیانوی لمسی · بدون میکروفون
+              🗺️ مسیر یادگیری
             </button>
             <button
-              className={input === "mic" ? "on" : ""}
-              aria-pressed={input === "mic"}
-              onClick={() => {
-                stop();
-                setInput("mic");
-              }}
+              role="tab"
+              aria-selected={tab === "songs"}
+              className={tab === "songs" ? "on" : ""}
+              onClick={() => setTab("songs")}
             >
-              کیبورد واقعی · میکروفون
+              🎵 آهنگ‌ها
             </button>
           </div>
-          {input === "mic" && (
-            <>
+          {tab === "path"
+            ? worldList.map((w) => {
+                const list = stages
+                    .map((s, i) => ({ s, i }))
+                    .filter((x) => x.s.world === w.index),
+                  got = list.filter((x) => records[x.s.id]?.stars).length,
+                  closed = !unlocked(w.from),
+                  open = currentWorld === w.index;
+                return (
+                  <section
+                    key={w.index}
+                    className={`world-card ${open ? "open" : ""} ${closed ? "closed" : ""}`}
+                    style={{ "--c": BRICKS[w.index % BRICKS.length] } as React.CSSProperties}
+                  >
+                    <button
+                      className="world-title"
+                      aria-expanded={open}
+                      onClick={() => setOpenWorld(open ? -1 : w.index)}
+                    >
+                      <span className="world-number">
+                        {closed ? <Lock size={20} /> : fa(w.index + 1)}
+                      </span>
+                      <span>
+                        <b>{w.title}</b>
+                        <small>{w.hint}</small>
+                      </span>
+                      <em>
+                        {fa(got)}/{fa(list.length)}
+                      </em>
+                    </button>
+                    {open && (
+                      <div className="stage-grid">
+                        {list.map((x) => stageButton(x.i))}
+                      </div>
+                    )}
+                  </section>
+                );
+              })
+            : [...songs]
+                .sort((a, b) => a.level - b.level)
+                .filter((song) => stages.some((s) => s.song === song.id))
+                .map((song, n) => {
+                  const list = stages
+                      .map((s, i) => ({ s, i }))
+                      .filter((x) => x.s.song === song.id),
+                    got = list.reduce((t, x) => t + (records[x.s.id]?.stars ?? 0), 0),
+                    open = openSong === song.id;
+                  return (
+                    <section
+                      key={song.id}
+                      className={`world-card song ${open ? "open" : ""}`}
+                      style={{ "--c": BRICKS[n % BRICKS.length] } as React.CSSProperties}
+                    >
+                      <button
+                        className="world-title"
+                        aria-expanded={open}
+                        onClick={() => setOpenSong(open ? null : song.id)}
+                      >
+                        <span className="world-number">🎵</span>
+                        <span>
+                          <b>{song.title}</b>
+                          <small>{song.subtitle}</small>
+                        </span>
+                        <em>⭐ {fa(got)}</em>
+                      </button>
+                      {open && (
+                        <div className="stage-grid">
+                          {list.map((x) =>
+                            stageButton(
+                              x.i,
+                              true,
+                              x.s.id.startsWith("concert-")
+                                ? "🎤 کنسرت"
+                                : undefined,
+                            ),
+                          )}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })}
+          <footer className="grown-ups">
+            <small>با چه پیانویی می‌زنی؟</small>
+            <div className="input-choice" role="group" aria-label="روش نواختن">
               <button
-                className="text-button"
+                className={input === "touch" ? "on" : ""}
+                aria-pressed={input === "touch"}
                 onClick={() => {
-                  setScreen("ready");
-                  setStatus("اینجا می‌توانی میکروفون را آزمایش و تنظیم کنی.");
+                  stop();
+                  setInput("touch");
                 }}
               >
-                <Settings size={16} /> تنظیم میکروفون
+                پیانوی لمسی · بدون میکروفون
               </button>
-              <button className="text-button" onClick={() => void tune()}>
-                <Gauge size={16} /> آشنا شدن با پیانوی من
+              <button
+                className={input === "mic" ? "on" : ""}
+                aria-pressed={input === "mic"}
+                onClick={() => {
+                  stop();
+                  setInput("mic");
+                }}
+              >
+                کیبورد واقعی · میکروفون
               </button>
-            </>
-          )}
-          {stages.map((s, i) => {
-            const locked = !unlocked(i),
-              r = records[s.id],
-              world = worldList[s.world];
-            return (
-              <div key={s.id}>
-                {world.from === i && (
-                  <div className="world-heading">
-                    <b>{world.title}</b>
-                    <small>{world.hint}</small>
-                  </div>
-                )}
-                <div
-                  className="map-row"
-                  style={{
-                    transform: `translateX(${[0, 65, 100, 65, 0, -65, -100, -65][i % 8]}px)`,
+            </div>
+            {input === "mic" && (
+              <div className="mic-tools">
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    setScreen("ready");
+                    setStatus("اینجا می‌توانی میکروفون را آزمایش و تنظیم کنی.");
                   }}
                 >
-                  {i > 0 && <div className="map-connector" />}
-                  <button
-                    ref={i === next ? resume : undefined}
-                    disabled={locked}
-                    className={`stage-square ${r?.stars ? "won" : ""} ${i === next ? "next" : ""}`}
-                    onClick={() => void choose(i)}
-                    aria-label={`مرحله ${i + 1}: ${s.title}`}
-                  >
-                    <span>
-                      {locked ? <Lock /> : r?.stars ? <Check /> : fa(i + 1)}
-                    </span>
-                    <small>{r?.stars ? "★".repeat(r.stars) : "♪"}</small>
-                  </button>
-                  <b>{s.title}</b>
-                  <small>
-                    {fa(s.steps.length)} نت · {fa(s.bpm)} ضرب در دقیقه
-                  </small>
-                </div>
+                  <Settings size={16} /> تنظیم میکروفون
+                </button>
+                <button className="text-button" onClick={() => void tune()}>
+                  <Gauge size={16} /> آشنا شدن با پیانوی من
+                </button>
               </div>
-            );
-          })}
+            )}
+          </footer>
         </div>
+      ) : screen === "intro" ? (
+        <section className="stage-intro">
+          <small>
+            {worldList[stage.world].title} · مرحلهٔ {fa(selected + 1)}
+          </small>
+          <h1>{stage.title}</h1>
+          <div className="note-preview" dir="ltr" aria-hidden="true">
+            {stage.steps.slice(0, 14).map((st, i) => (
+              <i
+                key={i}
+                style={
+                  { "--c": noteColor(st.midi), flexGrow: st.beats } as React.CSSProperties
+                }
+              >
+                {keyLabel(st.midi)}
+              </i>
+            ))}
+            {stage.steps.length > 14 && <span>…</span>}
+          </div>
+          <p>
+            {fa(stage.steps.length)} آجر ·{" "}
+            {records[stage.id]?.stars
+              ? "★".repeat(records[stage.id].stars) + " گرفته‌ای"
+              : "هنوز ستاره نداری"}
+          </p>
+          <div className="mode-cards">
+            {(["listen", "learn", "rhythm"] as Mode[]).map((how) =>
+              modeButton(how, how === recommended),
+            )}
+          </div>
+          {speedPicker}
+          {status && <p role="status">{status}</p>}
+        </section>
       ) : screen === "tune" ? (
         <section className="game-ready tune-screen">
-          <FantasyIcon name="piano" />
+          <BrickBuddy />
           <h1>بیا با پیانوی تو آشنا شوم</h1>
           <p>
             سه کلید را یکی‌یکی می‌زنی و من یاد می‌گیرم صدای پیانوی تو چطور است.
@@ -583,6 +914,7 @@ export function RhythmGame({
                 className={
                   replies[i] !== undefined ? "done" : i === asked ? "now" : ""
                 }
+                style={{ "--c": noteColor(midi) } as React.CSSProperties}
               >
                 <b>{keyLabel(midi)}</b>
                 <span>{noteName(midi)}</span>
@@ -603,7 +935,7 @@ export function RhythmGame({
           <div className="game-buttons">
             {tuned && (
               <button
-                className="button"
+                className="brick-button"
                 onClick={() => {
                   stop();
                   setScreen("map");
@@ -630,7 +962,10 @@ export function RhythmGame({
           <p role="status">
             {status || "کلیدها را امتحان کن، سپس بازی را شروع کن."}
           </p>
-          <button className="button" onClick={() => void choose(selected)}>
+          <button
+            className="brick-button"
+            onClick={() => void startMode(mode)}
+          >
             شروع بازی با پیانوی لمسی
           </button>
           <TouchPiano
@@ -641,14 +976,13 @@ export function RhythmGame({
         </section>
       ) : screen === "ready" ? (
         <section className="game-ready">
-          <FantasyIcon name="piano" />
+          <BrickBuddy />
           <span>مرحلهٔ {fa(selected + 1)}</span>
           <h1>{stage.title}</h1>
           <p>
-            شماره‌ها از بالا می‌آیند. وقتی به خط طلایی رسیدند، همان شماره را روی
+            آجرها از بالا می‌آیند. وقتی به خط زرد رسیدند، همان شماره را روی
             کیبوردت بزن.
           </p>
-          {speedPicker}
           <div className={"mic-status " + (mic.active ? "connected" : "")}>
             <Mic />
             {mic.active ? "میکروفون روشن؛ صدای واقعی ساز" : "میکروفون خاموش"}
@@ -731,7 +1065,7 @@ export function RhythmGame({
           </div>
           <div className="game-buttons">
             <button
-              className="button outline"
+              className="brick-button outline"
               onClick={async () => {
                 if (await connect()) {
                   listening.current = true;
@@ -743,9 +1077,9 @@ export function RhythmGame({
               فعال‌کردن / آزمایش میکروفون
             </button>
             <button
-              className="button"
+              className="brick-button"
               onClick={async () => {
-                if (mic.active || (await connect())) begin(selected);
+                if (mic.active || (await connect())) begin(selected, mode);
               }}
             >
               <Play />
@@ -758,32 +1092,36 @@ export function RhythmGame({
           </small>
         </section>
       ) : screen === "play" ? (
-        <>
+        <div className="play-area">
           <div className="game-hud">
-            <span>
-              امتیاز <b>{fa(score)}</b>
+            <span className="hud-mode">
+              {MODES[rm].icon} {MODES[rm].name}
             </span>
-            <span>
-              پشت سر هم <b>{fa(combo)} 🔥</b>
-            </span>
+            {rm !== "listen" && (
+              <span>
+                امتیاز <b>{fa(score)}</b>
+              </span>
+            )}
+            {rm !== "listen" && (
+              <span className={combo >= 3 ? "hot" : ""}>
+                پشت سر هم <b>{fa(combo)} 🔥</b>
+              </span>
+            )}
             <span>
               <Gauge size={18} />
               {percent(speed)}
             </span>
-            <span>
-              {input === "touch" ? <Piano size={18} /> : <Mic size={18} />}
-              {input === "touch"
-                ? "پیانوی لمسی فعال است"
-                : mic.active
-                  ? "گوش می‌دهم"
-                  : "میکروفون قطع شد"}
-            </span>
+            {input === "mic" && rm !== "listen" && (
+              <span>
+                <Mic size={18} />
+                {mic.active ? "گوش می‌دهم" : "میکروفون قطع شد"}
+              </span>
+            )}
             <button
-              className="small-button"
+              className="brick-button small"
               onClick={() => {
                 stop();
-                setScreen("ready");
-                setStatus("هر وقت آماده بودی، «شروع بازی» را بزن.");
+                setScreen("intro");
               }}
             >
               <Pause />
@@ -791,48 +1129,85 @@ export function RhythmGame({
             </button>
           </div>
           <div className="play-feedback" role="status">
-            {input === "mic" && mic.quality === "unclear"
+            {input === "mic" && rm !== "listen" && mic.quality === "unclear"
               ? "صدا واضح نیست؛ فقط یک کلید و بدون پدال بزن."
               : feedback}
           </div>
-          <div className="note-highway" dir="ltr">
-            <div className="lanes">
-              {run.current.keys.map((k) => (
-                <div
-                  key={k.midi}
-                  className={k.white ? "" : "black"}
-                  style={{ left: `${k.left}%`, width: `${k.width}%` }}
-                />
-              ))}
+          <div className="progress-bar">
+            <i style={{ width: (100 * resolved.size) / rs.steps.length + "%" }} />
+          </div>
+          <div className="stage3d" dir="ltr">
+            <div className="note-highway">
+              <div className="lanes">
+                {run.current.keys.map((k) => (
+                  <div
+                    key={k.midi}
+                    className={k.white ? "" : "black"}
+                    style={
+                      {
+                        left: `${k.left}%`,
+                        width: `${k.width}%`,
+                        "--c": noteColor(k.midi),
+                      } as React.CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+              {rs.steps.map((s, i) => {
+                const bottom = ((rt[i] - time) / lead) * 100,
+                  height = Math.max(4, (rl[i] / lead) * 100 - 1.2);
+                if (bottom > 104 || bottom + height < -8 || resolved.has(i))
+                  return null;
+                const k = run.current.keys.find((x) => x.midi === s.midi)!;
+                return (
+                  <div
+                    key={i}
+                    className={
+                      "falling-note " +
+                      (k.white ? "" : "black ") +
+                      (lit.includes(s.midi) && Math.abs(rt[i] - time) < 900
+                        ? "near"
+                        : "")
+                    }
+                    style={
+                      {
+                        left: `${k.left}%`,
+                        width: `${k.width}%`,
+                        bottom: `${bottom}%`,
+                        height: `${height}%`,
+                        "--c": noteColor(s.midi),
+                      } as React.CSSProperties
+                    }
+                  >
+                    <span>{keyLabel(s.midi)}</span>
+                  </div>
+                );
+              })}
             </div>
-            {run.current.stage.steps.map((s, i) => {
-              const y = 100 - ((run.current.times[i] - time) / lead) * 100;
-              if (y < -10 || y > 112 || resolved.has(i)) return null;
-              const k = run.current.keys.find((x) => x.midi === s.midi)!;
-              return (
-                <div
-                  key={i}
-                  className={
-                    "falling-note " +
-                    (k.white ? "" : "black ") +
-                    (Math.abs(run.current.times[i] - time) <
-                    windowFor(run.current.tol)
-                      ? "near"
-                      : "")
-                  }
-                  style={{
-                    left: `${k.left}%`,
-                    width: `${k.width}%`,
-                    top: `${y}%`,
-                  }}
-                >
-                  {keyLabel(s.midi)}
-                </div>
-              );
-            })}
             <div className="hit-line">
               <span>همین‌جا بزن</span>
             </div>
+            {bursts.map((b) => {
+              const k = run.current.keys.find((x) => x.midi === b.midi);
+              return (
+                k && (
+                  <div
+                    key={b.id}
+                    className="burst"
+                    style={
+                      {
+                        left: `${k.left + k.width / 2}%`,
+                        "--c": noteColor(b.midi),
+                      } as React.CSSProperties
+                    }
+                  >
+                    {[0, 1, 2, 3, 4, 5].map((n) => (
+                      <i key={n} style={{ "--a": n * 60 + "deg" } as React.CSSProperties} />
+                    ))}
+                  </div>
+                )
+              );
+            })}
             {time < lead - 1200 && (
               <div className="countdown">
                 {fa(Math.ceil((lead - 200 - time) / 1000))}
@@ -842,93 +1217,126 @@ export function RhythmGame({
           {input === "touch" ? (
             <>
               <TouchPiano
-                steps={run.current.stage.steps}
+                steps={rs.steps}
+                lit={lit}
                 onNote={(m) => handler.current(m)}
                 onError={() =>
                   setFeedback("صدای دستگاه پخش نشد؛ صدا را روشن کن.")
                 }
               />
               <p className="game-caption">
-                روی همین کلیدها بزن؛ لمس هم‌زمان چند کلید هم کار می‌کند. با
-                کامپیوتر: A S D F G H J K
+                با کامپیوتر: A S D F G H J K
               </p>
             </>
           ) : (
             <>
-              {" "}
-              <div className="game-piano" dir="ltr">
-                {run.current.keys.map((k) => (
-                  <div
-                    key={k.midi}
-                    className={
-                      (k.white ? "" : "black ") +
-                      (heard === k.midi + offset ? "heard" : "")
-                    }
-                    style={{ left: `${k.left}%`, width: `${k.width}%` }}
-                  >
-                    {k.white && keyLabel(k.midi)}
-                  </div>
+              <div className="touch-piano-wrapper">
+                <div className="game-piano touch-piano guide" dir="ltr">
+                  {run.current.keys.map((k) => (
+                    <div
+                      key={k.midi}
+                      className={
+                        (k.white ? "" : "black ") +
+                        (heard === k.midi + offset ? "pressed " : "") +
+                        (lit.includes(k.midi) ? "lit" : "")
+                      }
+                      style={
+                        {
+                          left: `${k.left}%`,
+                          width: `${k.width}%`,
+                          "--c": noteColor(k.midi),
+                        } as React.CSSProperties
+                      }
+                    >
+                      <b>{keyLabel(k.midi)}</b>
+                      {k.white && <small>{noteName(k.midi)}</small>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {rm !== "listen" && (
+                <p className="game-caption">
+                  <b>
+                    {heard === null
+                      ? mic.quality === "quiet"
+                        ? "هنوز هیچ صدایی نشنیده‌ام — ساز را نزدیک‌تر کن یا حساسیت را زیاد کن"
+                        : "صدا می‌رسد، اما هنوز نتی تشخیص ندادم"
+                      : `می‌شنوم: ${western(heard)} · ${noteName(heard)} = کلید ${keyLabel(heard - offset)}`}
+                  </b>{" "}
+                  کلیدهای این تصویر راهنما هستند؛ روی کیبورد واقعی بزن.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
+        <section className="game-result">
+          <BrickBuddy cheer={rm === "listen" || earned > 0} />
+          <h1>
+            {rm === "listen"
+              ? "دیدی چطوری بود؟ حالا نوبت توست!"
+              : rm === "learn"
+                ? "آفرین! یادش گرفتی 🎉"
+                : earned
+                  ? "مرحله را رد کردی! 🏆"
+                  : "یک بار دیگر امتحان کنیم 💪"}
+          </h1>
+          {rm !== "listen" && (
+            <>
+              <div className="result-stars">
+                {[0, 1, 2].map((n) => (
+                  <i key={n} className={earned > n ? "on" : ""} style={{ animationDelay: n * 0.25 + "s" }}>
+                    ★
+                  </i>
                 ))}
               </div>
-              <p className="game-caption">
-                <b>
-                  {heard === null
-                    ? mic.quality === "quiet"
-                      ? "هنوز هیچ صدایی نشنیده‌ام — ساز را نزدیک‌تر کن یا حساسیت را زیاد کن"
-                      : "صدا می‌رسد، اما هنوز نتی تشخیص ندادم"
-                    : `می‌شنوم: ${western(heard)} · ${noteName(heard)} = کلید ${keyLabel(heard - offset)}`}
-                </b>{" "}
-                کلیدهای این تصویر راهنما هستند؛ روی کیبورد واقعی بزن.
+              <strong>{fa(score)} امتیاز</strong>
+              <p>
+                {rm === "learn"
+                  ? `${fa(hits)} آجر ساختی${errors.current ? ` · ${fa(errors.current)} بار کلید اشتباه` : " · بدون حتی یک اشتباه!"}`
+                  : `${fa(hits)} نت درست و به‌موقع از ${fa(rs.steps.length)} · سرعت ${percent(speed)}`}
               </p>
             </>
           )}
-        </>
-      ) : (
-        <section className="game-result">
-          <FantasyIcon name="trophy" />
-          <h1>
-            {stars(hits, stage.steps.length)
-              ? "مرحله را رد کردی!"
-              : "یک بار دیگر امتحان کنیم"}
-          </h1>
-          <div className="result-stars">
-            {"★".repeat(stars(hits, stage.steps.length))}
-            {"☆".repeat(3 - stars(hits, stage.steps.length))}
-          </div>
-          <strong>{fa(score)} امتیاز</strong>
-          <p>
-            {fa(hits)} نت درست و به‌موقع از {fa(stage.steps.length)} · سرعت{" "}
-            {percent(speed)}
-          </p>
-          {speed < 1 && stars(hits, stage.steps.length) >= 2 && (
+          {rm === "learn" && (
+            <p>حالا «با ریتم» بزن تا ستاره‌های دوم و سوم را هم بگیری.</p>
+          )}
+          {rm === "rhythm" && speed < 1 && earned >= 2 && (
             <p>عالی بود! حالا سرعت را یک پله بالا ببر و دوباره بزن.</p>
           )}
-          {speed > 0.5 && stars(hits, stage.steps.length) === 0 && (
-            <p>سرعت را کمتر کن و همین مرحله را آرام‌تر تمرین کن.</p>
+          {rm === "rhythm" && earned === 0 && (
+            <p>
+              اول «آروم با من» را بزن، یا سرعت را کمتر کن. برای رد شدن، ۶۰٪
+              نت‌ها را به‌موقع بزن.
+            </p>
           )}
-          {speedPicker}
-          <p>برای بازشدن مرحلهٔ بعد، حداقل ۶۰٪ نت‌ها را درست و به‌موقع بزن.</p>
-          <div className="game-buttons">
-            <button
-              className="button outline"
-              onClick={() => void choose(selected)}
-            >
-              <RotateCcw />
-              دوباره بازی کن
-            </button>
-            {stars(hits, stage.steps.length) > 0 &&
+          <div className="mode-cards compact">
+            {rm === "listen" && modeButton("learn", true)}
+            {rm !== "listen" && (
+              <button
+                className="brick-button outline"
+                onClick={() => void startMode(rm)}
+              >
+                <RotateCcw />
+                دوباره بازی کن
+              </button>
+            )}
+            {rm !== "rhythm" && modeButton("rhythm", rm === "learn")}
+            {rm !== "listen" &&
+              records[rs.id]?.stars > 0 &&
               selected + 1 < stages.length && (
                 <button
-                  className="button"
-                  onClick={() => void choose(selected + 1)}
+                  className="brick-button"
+                  onClick={() => choose(selected + 1)}
                 >
                   مرحلهٔ بعد <Play />
                 </button>
               )}
-            <button className="text-button" onClick={() => setScreen("map")}>
-              دیدن نقشه
-            </button>
           </div>
+          {rm === "rhythm" && speedPicker}
+          <button className="text-button" onClick={() => setScreen("map")}>
+            دیدن نقشه
+          </button>
         </section>
       )}
     </div>

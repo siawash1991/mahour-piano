@@ -14,6 +14,10 @@ export function keyLabel(m: number): string {
   for (let x = 60; x <= m; x++) if (isWhite(x)) n++;
   return n.toLocaleString("fa-IR");
 }
+/** One brick colour per note name (دو قرمز، رِ نارنجی…); a black key wears its lower neighbour's colour. */
+const COLORS = ["#e3000b", "#e3000b", "#ff8a00", "#ff8a00", "#ffcd00", "#00a650", "#00a650", "#0a6cd6", "#0a6cd6", "#8e44ad", "#8e44ad", "#ff4f9a"];
+export const noteColor = (m: number) => COLORS[((m % 12) + 12) % 12];
+export type Mode = "listen" | "learn" | "rhythm";
 export type Key = { midi: number; white: boolean; left: number; width: number };
 /**
  * The strip of piano keys a stage needs, including middle C and never narrower than
@@ -221,6 +225,11 @@ const worlds: World[] = [
     song: "fur-elise",
     size: 4,
   },
+  { title: "زیر نور ماه", hint: "لالایی آرام با سه کلید", bpm: 60, song: "moon", size: 6 },
+  { title: "هانس کوچولو", hint: "پنج کلید، بالا و پایین", bpm: 62, song: "lightly", size: 6 },
+  { title: "پل لندن", hint: "یک بازی آوازی قدیمی", bpm: 64, song: "london", size: 7 },
+  { title: "پارو بزن", hint: "نت‌های بلند و کوتاه روی آب", bpm: 58, song: "row", size: 6 },
+  { title: "مزرعهٔ عمو مک‌دونالد", hint: "ای-آی-ای-آی-او!", bpm: 66, song: "farm", size: 6 },
   {
     title: "کنسرت بزرگ",
     hint: "آهنگ کامل، با سرعت واقعی",
@@ -241,6 +250,11 @@ const concert = [
   "bells",
   "birthday",
   "fur-elise",
+  "moon",
+  "lightly",
+  "london",
+  "row",
+  "farm",
 ];
 export const stages: Stage[] = worlds.flatMap((w, wi) => {
   const head = { world: wi, worldTitle: w.title };

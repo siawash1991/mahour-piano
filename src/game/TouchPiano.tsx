@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState } from "react";
-import { board, keyLabel } from "./engine";
-import { western, type Step } from "../curriculum";
+import React, { useEffect, useRef, useState } from "react";
+import { board, keyLabel, noteColor } from "./engine";
+import { western, noteName, type Step } from "../curriculum";
 import { startPianoNote } from "../audio";
 export function TouchPiano({
   steps,
   onNote,
   onError,
+  lit = [],
 }: {
   steps: Step[];
   onNote: (m: number) => void;
   onError: () => void;
+  /** Keys to glow: the note the child should play next, or the one the demo is playing. */
+  lit?: number[];
 }) {
   const keys = board(
       steps.flatMap((s) => [s, ...(s.chord || []).map((midi) => ({ midi }))]),
@@ -93,9 +96,17 @@ export function TouchPiano({
             aria-label={`کلید ${western(k.midi)}`}
             aria-pressed={pressed.has(k.midi)}
             className={
-              (k.white ? "" : "black ") + (pressed.has(k.midi) ? "pressed" : "")
+              (k.white ? "" : "black ") +
+              (pressed.has(k.midi) ? "pressed " : "") +
+              (lit.includes(k.midi) ? "lit" : "")
             }
-            style={{ left: k.left + "%", width: k.width + "%" }}
+            style={
+              {
+                left: k.left + "%",
+                width: k.width + "%",
+                "--c": noteColor(k.midi),
+              } as React.CSSProperties
+            }
             onPointerDown={(e) => {
               e.preventDefault();
               e.currentTarget.setPointerCapture?.(e.pointerId);
@@ -113,7 +124,7 @@ export function TouchPiano({
             }}
           >
             <b>{keyLabel(k.midi)}</b>
-            <small>{western(k.midi)}</small>
+            {k.white && <small>{noteName(k.midi)}</small>}
           </button>
         ))}
       </div>

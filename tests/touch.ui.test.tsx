@@ -48,6 +48,7 @@ it("new player starts and scores from touch without permission or calibration", 
   vi.spyOn(performance, "now").mockImplementation(() => now);
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   expect(io.start).not.toHaveBeenCalled();
   expect(screen.queryByText("بیا با پیانوی تو آشنا شوم")).toBeNull();
   now = schedule(
@@ -81,6 +82,7 @@ it("touch attempts finish and are stored as screen input", async () => {
   const save = vi.fn();
   render(<RhythmGame onExit={() => {}} onSave={save} />);
   await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("با ریتم");
   const times = schedule(
     stages[0].steps.map((s) => s.beats),
     stages[0].bpm * readSpeed(),
@@ -140,4 +142,37 @@ it("two held keys release independently and re-striking scores again", async () 
   fireEvent.blur(window);
   expect(releases[1]).toHaveBeenCalledTimes(1);
   expect(releases[2]).toHaveBeenCalledTimes(1);
+});
+
+it("wait mode holds the brick on the line, never misses, and its finish earns the first star", async () => {
+  let now = 0;
+  let frame: FrameRequestCallback | undefined;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  vi.spyOn(window, "requestAnimationFrame").mockImplementation((fn) => {
+    frame = fn;
+    return 1;
+  });
+  const save = vi.fn();
+  render(<RhythmGame onExit={() => {}} onSave={save} />);
+  await click("مرحله 1: سلام دو، رِ، می ۱");
+  await click("آروم با من");
+  // A child who never plays: an hour passes and nothing is missed, nothing is saved.
+  now = 3_600_000;
+  await act(async () => void frame?.(now));
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.getByText("همین‌جا بزن")).toBeTruthy();
+  // A wrong key is only a hint; the right one clears the waiting brick.
+  await click("کلید D4");
+  expect(save).not.toHaveBeenCalled();
+  for (const _ of stages[0].steps) {
+    await click("کلید C4");
+    await new Promise((r) => setTimeout(r, 270));
+    now += 100_000;
+    await act(async () => void frame?.(now));
+  }
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({ mode: "wait-mode", correct: stages[0].steps.length, wrong: 1 }),
+  );
+  expect(JSON.parse(localStorage.getItem("mahour-game")!)[stages[0].id].stars).toBe(1);
+  expect(screen.getByRole("button", { name: /مرحلهٔ بعد/ })).toBeTruthy();
 });

@@ -6,9 +6,15 @@ A Persian / RTL piano practice web app for a seven-year-old beginner, with a pro
 
 ## Rhythm game (default entry)
 
-Touch piano is the default input. Choose a stage and play the white and black keys directly below the falling notes; no microphone permission, keyboard calibration, MIDI device or external sound download is required. The keys sound on press and release on finger lift, cancellation, tab blur or leaving the exercise. Multiple fingers work independently. A/S/D/F/G/H/J/K/L/; also play the displayed white keys. Touch notes use their exact octave and ignore saved microphone tuning.
+A toy-brick world ("ماهور و شهر آجری موسیقی"). Notes are coloured bricks (دو red, رِ orange, می yellow, فا green, سل blue, لا purple, سی pink; a black key wears its lower neighbour's colour) that slide down a 3D road onto a 3D piano whose keys carry the same coloured number stickers. Brick length is note length.
 
-Play when the number reaches the gold line. Correct timed notes turn the surface green; incorrect or missed notes turn it red. Practice speeds (50/65/80/100%) stretch the timing window. Earn at least 60% timed hits to unlock the next stage. Scores and stars persist locally; touch attempts are recorded as `screen` input. Regular studio exercises, including bass notes and chords, also default to this playable piano.
+Every stage is learnt in three steps, picked on the stage card:
+
+1. **👂 گوش بده** — the piano plays the stage by itself while the bricks fall and the keys light up. Nothing is scored.
+2. **🐢 آروم با من** (wait mode) — each brick stops on the yellow line, and its key glows, until the right key is played. Nothing can be missed; a wrong key is just a hint. Finishing earns the first star, which unlocks the next stage.
+3. **⚡ با ریتم** — timed play at 50/65/80/100% speed. 60/80/95% timed hits earn one/two/three stars.
+
+The home screen has a continue button, the learning path grouped by world, and a Songs tab where every song opens directly as parts → halves → whole → concert tempo, whatever the path progress. Every star is one brick in the child's tower. Touch piano is the default input: no microphone, calibration or MIDI needed. A/S/D/F/G/H/J/K/L/; also play the white keys.
 
 The optional “کیبورد واقعی · میکروفون” input retains physical-keyboard tuning and listening. It requests audio permission only when that mode is selected and started.
 

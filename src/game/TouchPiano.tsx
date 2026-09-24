@@ -7,12 +7,15 @@ export function TouchPiano({
   onNote,
   onError,
   lit = [],
+  bare = false,
 }: {
   steps: Step[];
   onNote: (m: number) => void;
   onError: () => void;
   /** Keys to glow: the note the child should play next, or the one the demo is playing. */
   lit?: number[];
+  /** Plain keys with no colour or number, for reading games where the sticker would give it away. */
+  bare?: boolean;
 }) {
   const keys = board(
       steps.flatMap((s) => [s, ...(s.chord || []).map((midi) => ({ midi }))]),
@@ -85,7 +88,7 @@ export function TouchPiano({
   return (
     <div className="touch-piano-wrapper">
       <div
-        className="game-piano touch-piano"
+        className={"game-piano touch-piano" + (bare ? " bare" : "")}
         dir="ltr"
         role="group"
         aria-label="پیانوی لمسی"
@@ -109,7 +112,11 @@ export function TouchPiano({
             }
             onPointerDown={(e) => {
               e.preventDefault();
-              e.currentTarget.setPointerCapture?.(e.pointerId);
+              try {
+                e.currentTarget.setPointerCapture?.(e.pointerId);
+              } catch {
+                /* a pointer the browser no longer tracks; the key still sounds */
+              }
               down("pointer-" + e.pointerId, k.midi);
             }}
             onPointerUp={(e) => up("pointer-" + e.pointerId)}
@@ -126,6 +133,46 @@ export function TouchPiano({
             <b>{keyLabel(k.midi)}</b>
             {k.white && <small>{noteName(k.midi)}</small>}
           </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The same keyboard as a picture: with a real piano and a microphone the child plays elsewhere. */
+export function GuidePiano({
+  steps,
+  lit = [],
+  heard = null,
+  bare = false,
+}: {
+  steps: { midi: number }[];
+  lit?: number[];
+  heard?: number | null;
+  bare?: boolean;
+}) {
+  return (
+    <div className="touch-piano-wrapper">
+      <div className={"game-piano touch-piano guide" + (bare ? " bare" : "")} dir="ltr">
+        {board(steps).map((k) => (
+          <div
+            key={k.midi}
+            className={
+              (k.white ? "" : "black ") +
+              (heard === k.midi ? "pressed " : "") +
+              (lit.includes(k.midi) ? "lit" : "")
+            }
+            style={
+              {
+                left: `${k.left}%`,
+                width: `${k.width}%`,
+                "--c": noteColor(k.midi),
+              } as React.CSSProperties
+            }
+          >
+            <b>{keyLabel(k.midi)}</b>
+            {k.white && <small>{noteName(k.midi)}</small>}
+          </div>
         ))}
       </div>
     </div>

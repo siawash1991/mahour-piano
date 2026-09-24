@@ -24,6 +24,8 @@ vi.mock("../src/tablet/useMicrophone", () => ({
 vi.mock("../src/audio", () => ({
   audioContext: vi.fn(async () => ({})),
   startPianoNote: io.tone,
+  playNote: vi.fn(async () => {}),
+  tick: vi.fn(async () => {}),
 }));
 import { RhythmGame } from "../src/game/RhythmGame";
 import { TouchPiano } from "../src/game/TouchPiano";
@@ -47,6 +49,7 @@ it("new player starts and scores from touch without permission or calibration", 
   let now = 0;
   vi.spyOn(performance, "now").mockImplementation(() => now);
   render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  fireEvent.click(screen.getByRole("tab", { name: "🧱 تمرین آزاد" }));
   await click("مرحله 1: سلام دو، رِ، می ۱");
   await click("با ریتم");
   expect(io.start).not.toHaveBeenCalled();
@@ -81,6 +84,7 @@ it("touch attempts finish and are stored as screen input", async () => {
   });
   const save = vi.fn();
   render(<RhythmGame onExit={() => {}} onSave={save} />);
+  fireEvent.click(screen.getByRole("tab", { name: "🧱 تمرین آزاد" }));
   await click("مرحله 1: سلام دو، رِ، می ۱");
   await click("با ریتم");
   const times = schedule(
@@ -154,6 +158,7 @@ it("wait mode holds the brick on the line, never misses, and its finish earns th
   });
   const save = vi.fn();
   render(<RhythmGame onExit={() => {}} onSave={save} />);
+  fireEvent.click(screen.getByRole("tab", { name: "🧱 تمرین آزاد" }));
   await click("مرحله 1: سلام دو، رِ، می ۱");
   await click("آروم با من");
   // A child who never plays: an hour passes and nothing is missed, nothing is saved.
@@ -175,4 +180,18 @@ it("wait mode holds the brick on the line, never misses, and its finish earns th
   );
   expect(JSON.parse(localStorage.getItem("mahour-game")!)[stages[0].id].stars).toBe(1);
   expect(screen.getByRole("button", { name: /مرحلهٔ بعد/ })).toBeTruthy();
+});
+
+it("a new child starts at lesson one: the buddy explains, then a listening game", async () => {
+  render(<RhythmGame onExit={() => {}} onSave={() => {}} />);
+  expect(screen.getByText("درس بعدی: صدای زیر، صدای بم")).toBeTruthy();
+  await click("ادامه بده");
+  expect(screen.getByRole("heading", { name: "صدای زیر، صدای بم" })).toBeTruthy();
+  await click("فهمیدم! ▶");
+  // the ear game offers bird or bear; one of them is right, and a right answer moves on
+  const bird = screen.getByRole("button", { name: "🐦 زیر" });
+  expect(screen.getByRole("button", { name: "🐻 بم" })).toBeTruthy();
+  await act(async () => void fireEvent.click(bird));
+  const said = screen.getAllByRole("status").map((s) => s.textContent).join(" ");
+  expect(said).toMatch(/درست شنیدی|نه دقیقاً/);
 });

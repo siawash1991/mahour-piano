@@ -33,9 +33,13 @@ vi.mock("../src/tablet/useMicrophone", () => ({
 vi.mock("../src/audio", () => ({
   audioContext: vi.fn(async () => ({})),
   startPianoNote: vi.fn(async () => () => {}),
+  playNote: vi.fn(async () => {}),
+  tick: vi.fn(async () => {}),
 }));
 function render(ui: React.ReactNode) {
   const result = baseRender(ui);
+  const free = screen.queryByRole("tab", { name: "🧱 تمرین آزاد" });
+  if (free) fireEvent.click(free);
   const button = screen.queryByRole("button", {
     name: "کیبورد واقعی · میکروفون",
   });

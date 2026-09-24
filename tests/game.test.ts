@@ -16,7 +16,7 @@ test('the keyboard strip always starts at middle C, covers the stage, and reads 
   assert.deepEqual([60,61,62,67,68,72,74,75,79].map(keyLabel),['۱','۱♯','۲','۵','۵♯','۸','۹','۹♯','۱۲']);
   for(const s of stages){
     const keys=board(s.steps);
-    assert.equal(keys[0].midi,60,s.id);
+    assert.ok(keys[0].midi<=60&&keys.some(k=>k.midi===60),s.id);
     for(const step of s.steps)assert.ok(keys.some(k=>k.midi===step.midi),`${s.id} plays ${step.midi} off the strip`);
     assert.ok(keys.filter(k=>k.white).length>=8,s.id);
     // White keys tile the full width edge to edge; black keys sit on the seams between them.

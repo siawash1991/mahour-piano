@@ -4,7 +4,26 @@
 
 A Persian / RTL piano practice web app for a seven-year-old beginner, with a progressive path toward early intermediate skills. Built with React, TypeScript and Vite; deployed to Vercel. No account, backend, analytics, external runtime CDN, or audio upload.
 
-## Rhythm game (default entry)
+## Learning journey (default entry)
+
+Twelve units, 36 lessons, ordered the way the major beginner methods (Faber, Hal Leonard, Suzuki, Kodály, Music Moves for Piano) agree: **sound before symbol**. Black-key geography and high/low → steady beat → «راه / دو-دو / وایسا / هیس» word rhythms → دو-رِ-می → playing by ear → five-finger position → reading note names → left hand → the staff with its landmark notes → skips → 3/4 and dynamics → hands taking turns and a family concert. The research behind it is kept locally, outside this public repository.
+
+A lesson is a ~10-minute session of short activities that always ends in a real song:
+
+- 💬 **talk**: the brick buddy explains one idea and lights it up on the keys
+- 👂 **ear**: bird or bear (high/low), lion or mouse (loud/soft), up/down/same
+- 🔍 **find**: every two-black-key group, every «دو», across three octaves
+- 🔁 **echo**: the buddy plays a short tune, the child plays it back; after a miss the next key glows
+- 🥁 **rhythm**: the buddy drums a word rhythm after a count-in, the child taps it back on a drum pad
+- 🔤 **read**: a note name or a note on the staff, played on unlabeled keys
+- 🎸 **jam**: free improvisation on the black keys (or C pentatonic) over a band
+- 🎵 **song**: listen → wait mode → rhythm, with a choice of songs on review steps
+
+Every song gets an automatic **band** (bass, chords, hi-hat, count-in) from a harmonizer that picks chords from the melody's own key (`src/lessons/harmony.ts`); it can be switched off. In wait mode each correct note is answered by its chord. A failed rhythm run lowers the speed one step by itself. Stars mark skills, not time; the weekly goal is a forgiving 3 days of 7 with no streak to lose; the parent box says which songs the child can now play.
+
+The Songs tab opens all 26 songs (9 of them black-key, left-hand and original pieces written for this app) in parts; «تمرین آزاد» keeps the earlier numbered drills.
+
+## Falling-notes game
 
 A toy-brick world ("ماهور و شهر آجری موسیقی"). Notes are coloured bricks (دو red, رِ orange, می yellow, فا green, سل blue, لا purple, سی pink; a black key wears its lower neighbour's colour) that slide down a 3D road onto a 3D piano whose keys carry the same coloured number stickers. Brick length is note length.
 

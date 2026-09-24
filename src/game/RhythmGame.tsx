@@ -38,6 +38,10 @@ import type { Attempt } from "../storage";
 import "./game.css";
 import { TouchPiano } from "./TouchPiano";
 import { audioContext, playNote } from "../audio";
+import { harmonize, chordAt, beatOf, type Chord } from "../lessons/harmony";
+import { playBand, strum, readBandOn, saveBandOn, type Band } from "../lessons/backing";
+import { units, allLessons as lessonList, type Activity } from "../lessons/journey";
+import { Talk, Jam, Ear, Find, Echo, Rhythm, Read, SongPick, type Bus } from "../lessons/Activities";
 type RecordMap = Record<string, { score: number; stars: number }>;
 function load(): RecordMap {
   try {
@@ -56,6 +60,37 @@ function load(): RecordMap {
     return {};
   }
 }
+function readList(key: string): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function saveList(key: string, list: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list));
+  } catch {
+    /* private browsing: progress lasts until the page closes */
+  }
+}
+const today = () => new Date().toISOString().slice(0, 10);
+/** The whole-song stage for a song id: the one a lesson plays and the Songs tab shares stars with. */
+const songStage = (id: string) => {
+  const i = stages.findIndex((s) => s.song === id && s.id.endsWith("-all"));
+  return i >= 0 ? i : stages.findIndex((s) => s.song === id);
+};
+const ACTIVITY_ICON: Record<Activity["kind"], string> = {
+  talk: "💬",
+  jam: "🎸",
+  ear: "👂",
+  find: "🔍",
+  echo: "🔁",
+  rhythm: "🥁",
+  read: "🔤",
+  song: "🎵",
+};
 const percent = (s: number) => fa(Math.round(s * 100)) + "٪";
 const BRICKS = ["#e3000b", "#ffcd00", "#0a6cd6", "#00a650", "#ff8a00", "#8e44ad"];
 const PRAISE = ["آفرین! ✨", "عالی! 🎉", "همینه! 💪", "درست زدی! ⭐", "ایول! 🚀"];
@@ -114,9 +149,14 @@ export function RhythmGame({
 }) {
   const [input, setInput] = useState<"touch" | "mic">("touch");
   const [screen, setScreen] = useState<
-      "map" | "intro" | "tune" | "ready" | "play" | "result"
+      "map" | "intro" | "tune" | "ready" | "play" | "result" | "lesson"
     >("map"),
-    [tab, setTab] = useState<"path" | "songs">("path"),
+    [tab, setTab] = useState<"path" | "songs" | "free">("path"),
+    [openUnit, setOpenUnit] = useState<number | null>(null),
+    [passed, setPassed] = useState(() => readList("mahour-journey")),
+    [days, setDays] = useState(() => readList("mahour-days")),
+    [lesson, setLesson] = useState<{ id: string; step: number } | null>(null),
+    [bandOn, setBandOnState] = useState(readBandOn),
     [openWorld, setOpenWorld] = useState<number | null>(null),
     [openSong, setOpenSong] = useState<string | null>(null),
     [mode, setMode] = useState<Mode>("rhythm"),
@@ -156,7 +196,10 @@ export function RhythmGame({
     answers = useRef<number[]>([]),
     flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null),
     handler = useRef<(m: number) => void>(() => {}),
-    resume = useRef<HTMLButtonElement | null>(null);
+    resume = useRef<HTMLButtonElement | null>(null),
+    band = useRef<Band | null>(null),
+    lessonMic = useRef(false),
+    bus: Bus = useRef(null);
   /** The run in flight: fixed at the moment play starts, so a stale render cannot retime it. */
   const run = useRef<{
     stage: Stage;
@@ -165,7 +208,9 @@ export function RhythmGame({
     tol: number;
     keys: Key[];
     mode: Mode;
+    chords: Chord[];
   }>({
+    chords: [],
     stage: stages[0],
     times: [],
     lengths: [],
@@ -177,7 +222,8 @@ export function RhythmGame({
   const mic = useMicrophone(
     (m) => handler.current(m),
     () =>
-      input === "mic" && (live.current || listening.current || tuning.current),
+      input === "mic" &&
+      (live.current || listening.current || tuning.current || lessonMic.current),
   );
   const signal = useRef(mic.quality);
   signal.current = mic.quality;
@@ -194,6 +240,9 @@ export function RhythmGame({
   };
   const stop = () => {
     epoch.current++;
+    band.current?.stop();
+    band.current = null;
+    lessonMic.current = false;
     live.current = false;
     listening.current = false;
     tuning.current = false;
@@ -204,8 +253,17 @@ export function RhythmGame({
     setSpeedState(n);
     saveSpeed(n);
   };
+  const practised = () => {
+    if (days.includes(today())) return;
+    const next = [...days, today()].slice(-60);
+    setDays(next);
+    saveList("mahour-days", next);
+  };
   const finish = () => {
     const { stage: s, mode: how } = run.current;
+    band.current?.stop();
+    band.current = null;
+    practised();
     live.current = false;
     mic.stop();
     cancelAnimationFrame(clock.current);
@@ -215,6 +273,9 @@ export function RhythmGame({
     // Finishing the patient mode always earns the first star; rhythm earns the other two.
     const n = how === "learn" ? 1 : stars(hit.current, s.steps.length);
     setEarned(n);
+    // Two or three misses in a row is the cue to make it easier, not to try harder at the same speed.
+    const slower = speeds[speeds.indexOf(speed) - 1];
+    if (how === "rhythm" && n === 0 && slower) setSpeed(slower);
     const next = {
       ...records,
       [s.id]: {
@@ -289,7 +350,8 @@ export function RhythmGame({
       s.bpm * speed,
     );
     const lengths = s.steps.map((step) => step.beats * beat);
-    run.current = { stage: s, times, lengths, tol, keys: board(s.steps), mode: how };
+    const chords = harmonize(s.steps);
+    run.current = { stage: s, times, lengths, tol, keys: board(s.steps), mode: how, chords };
     clear.current = input === "touch" || how !== "rhythm";
     listening.current = false;
     done.current = new Set();
@@ -315,6 +377,16 @@ export function RhythmGame({
     start.current = performance.now();
     live.current = true;
     setScreen("play");
+    // The band counts the child in and plays under the melody; wait mode answers each note instead.
+    if (bandOn && how !== "learn") {
+      const token = epoch.current;
+      playBand(chords, s.bpm * speed, times[0])
+        .then((b) => {
+          if (token === epoch.current && live.current) band.current = b;
+          else b.stop();
+        })
+        .catch(() => {});
+    }
     const deaf = Math.min(3, times.length);
     const frame = () => {
       if (!live.current) return;
@@ -423,6 +495,10 @@ export function RhythmGame({
       );
       return;
     }
+    if (lessonMic.current) {
+      bus.current?.(m - offset);
+      return;
+    }
     if (listening.current) {
       setStatus(`${noteName(m)} شنیدم — میکروفون درست کار می‌کند.`);
       return;
@@ -461,6 +537,8 @@ export function RhythmGame({
       if (m === want || octave) {
         rebase(octave);
         score1(n, slipped.current ? 50 : 100, PRAISE[hit.current % PRAISE.length], s.steps[n].midi);
+        if (bandOn)
+          void strum(chordAt(run.current.chords, beatOf(s.steps, n)), 0.8).catch(() => {});
         slipped.current = false;
       } else {
         errors.current++;
@@ -546,6 +624,11 @@ export function RhythmGame({
   const unlocked = (i: number) =>
     i === 0 || (records[stages[i - 1].id]?.stars ?? 0) >= 1;
   const next = stages.findIndex((s, i) => unlocked(i) && !records[s.id]?.stars);
+  const lessonOpen = (k: number) => k === 0 || passed.includes(lessonList[k - 1].id);
+  const nextLesson = lessonList.findIndex(
+    (l, k) => lessonOpen(k) && !passed.includes(l.id),
+  );
+
   const currentWorld = openWorld ?? stages[Math.max(0, next)].world;
   const totalStars = Object.values(records).reduce((n, r) => n + r.stars, 0);
   const opened = useRef(false);
@@ -558,18 +641,84 @@ export function RhythmGame({
   }, [openStage]);
   useEffect(() => {
     // Only jump into the map once there is progress to jump to; a fresh child starts at the top.
-    if (screen === "map" && tab === "path" && next > 0)
+    if (screen === "map" && tab === "path" && nextLesson > 0)
       resume.current?.scrollIntoView?.({ block: "center" });
-  }, [screen, next, tab]);
+  }, [screen, nextLesson, tab]);
   useEffect(() => {
     if (screen === "play")
       document
         .querySelector(".rhythm-game")
         ?.scrollIntoView?.({ block: "start" });
   }, [screen]);
+  const setBand = (on: boolean) => {
+    setBandOnState(on);
+    saveBandOn(on);
+    if (!on) {
+      band.current?.stop();
+      band.current = null;
+    }
+  };
+  const lessonAt = (id: string) => lessonList.find((l) => l.id === id)!;
+  const knows = (id: string, n = 1) =>
+    (records[stages[songStage(id)]?.id]?.stars ?? 0) >= n;
+  /** Enter a lesson at one of its activities; a real piano is listened to the whole way through. */
+  const openLesson = (id: string, step = 0) => {
+    stop();
+    setLesson({ id, step });
+    setScreen("lesson");
+    if (input === "mic")
+      void connect().then((ok) => {
+        if (ok) lessonMic.current = true;
+      });
+  };
+  const advance = () => {
+    if (!lesson) return;
+    practised();
+    const l = lessonAt(lesson.id),
+      step = lesson.step + 1;
+    if (step >= l.activities.length && !passed.includes(l.id)) {
+      const list = [...passed, l.id];
+      setPassed(list);
+      saveList("mahour-journey", list);
+    }
+    openLesson(l.id, step);
+  };
+  /** A review offers only songs already played; the child always picks from at most three. */
+  const choicesFor = (a: Extract<Activity, { kind: "song" }>) => {
+    const known = a.review ? a.songs.filter((id) => knows(id)) : a.songs;
+    return (known.length ? known : a.songs).slice(0, 3);
+  };
+  const activityView = (a: Activity) => {
+    const props = { input, bus, onDone: advance };
+    switch (a.kind) {
+      case "talk":
+        return <Talk activity={a} {...props} />;
+      case "jam":
+        return <Jam activity={a} {...props} />;
+      case "ear":
+        return <Ear activity={a} {...props} />;
+      case "find":
+        return <Find activity={a} {...props} />;
+      case "echo":
+        return <Echo activity={a} {...props} />;
+      case "rhythm":
+        return <Rhythm activity={a} {...props} />;
+      case "read":
+        return <Read activity={a} {...props} />;
+      case "song":
+        return (
+          <SongPick
+            activity={a}
+            choices={choicesFor(a)}
+            onSong={(id, how) => void startMode(how, songStage(id))}
+          />
+        );
+    }
+  };
   /** Tapping a stage opens its card, where the child picks how to play it. */
   const choose = (i: number) => {
     stop();
+    setLesson(null);
     setSelected(i);
     setHeard(null);
     setStatus("");
@@ -662,6 +811,11 @@ export function RhythmGame({
       {primary && <em>پیشنهاد من</em>}
     </button>
   );
+  const week = Array.from({ length: 7 }, (_, k) => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6 + k);
+    return d.toISOString().slice(0, 10);
+  });
   const recommended: Mode = records[stage.id]?.stars ? "rhythm" : "learn";
   // Keys to glow: the demo's note, the brick waiting on the line, or any brick inside its window.
   const { times: rt, lengths: rl, stage: rs, mode: rm, tol: rtol } = run.current;
@@ -686,6 +840,7 @@ export function RhythmGame({
           className="brick-button small"
           onClick={() => {
             stop();
+            setLesson(null);
             if (screen === "map") onExit();
             else setScreen("map");
           }}
@@ -702,21 +857,33 @@ export function RhythmGame({
       {screen === "map" ? (
         <div className="world-map">
           <section className="hero-card">
-            <BrickBuddy cheer={totalStars > 0} />
+            <BrickBuddy cheer={totalStars + passed.length > 0} />
             <div>
               <h1>سلام ماهور! 👋</h1>
               <p>
-                {next >= 0
-                  ? `مرحلهٔ بعدی: ${stages[next].title}`
-                  : "همهٔ مرحله‌ها را ساختی! حالا آهنگ‌ها را با ریتم بزن."}
+                {nextLesson >= 0
+                  ? `درس بعدی: ${lessonList[nextLesson].title}`
+                  : "همهٔ درس‌ها را تمام کردی! حالا برای خانواده کنسرت بده."}
               </p>
-              {next >= 0 && (
-                <button className="brick-button big" onClick={() => choose(next)}>
+              {nextLesson >= 0 && (
+                <button
+                  className="brick-button big"
+                  onClick={() => openLesson(lessonList[nextLesson].id)}
+                >
                   <Play /> ادامه بده
                 </button>
               )}
+              <div className="week" aria-label="تمرین این هفته">
+                {week.map((d) => (
+                  <i key={d} className={days.includes(d) ? "on" : ""} />
+                ))}
+                <small>
+                  این هفته {fa(week.filter((d) => days.includes(d)).length)} روز
+                  تمرین · هدف: ۳ روز
+                </small>
+              </div>
             </div>
-            <Tower count={totalStars} />
+            <Tower count={totalStars + passed.length} />
           </section>
           <div className="tabs" role="tablist">
             <button
@@ -735,8 +902,80 @@ export function RhythmGame({
             >
               🎵 آهنگ‌ها
             </button>
+            <button
+              role="tab"
+              aria-selected={tab === "free"}
+              className={tab === "free" ? "on" : ""}
+              onClick={() => setTab("free")}
+            >
+              🧱 تمرین آزاد
+            </button>
           </div>
           {tab === "path"
+            ? units.map((u, ui) => {
+                const list = lessonList.filter((l) => l.unit === ui),
+                  got = list.filter((l) => passed.includes(l.id)).length,
+                  closed = !lessonOpen(lessonList.indexOf(list[0])),
+                  open =
+                    (openUnit ?? lessonList[Math.max(0, nextLesson)].unit) === ui;
+                return (
+                  <section
+                    key={ui}
+                    className={`world-card ${open ? "open" : ""} ${closed ? "closed" : ""}`}
+                    style={{ "--c": BRICKS[ui % BRICKS.length] } as React.CSSProperties}
+                  >
+                    <button
+                      className="world-title"
+                      aria-expanded={open}
+                      onClick={() => setOpenUnit(open ? -1 : ui)}
+                    >
+                      <span className="world-number">
+                        {closed ? <Lock size={20} /> : u.icon}
+                      </span>
+                      <span>
+                        <small>واحد {fa(ui + 1)}</small>
+                        <b>{u.title}</b>
+                      </span>
+                      <em>
+                        {fa(got)}/{fa(list.length)}
+                      </em>
+                    </button>
+                    {open && (
+                      <div className="lesson-list">
+                        {list.map((l) => {
+                          const k = lessonList.indexOf(l),
+                            ok = lessonOpen(k),
+                            won = passed.includes(l.id);
+                          return (
+                            <button
+                              key={l.id}
+                              ref={k === nextLesson ? resume : undefined}
+                              disabled={!ok}
+                              className={`lesson-row ${won ? "won" : ""} ${k === nextLesson ? "next" : ""}`}
+                              onClick={() => openLesson(l.id)}
+                              aria-label={`درس ${l.title}`}
+                            >
+                              <span className="lesson-num">
+                                {won ? "✓" : ok ? fa(k + 1) : <Lock size={18} />}
+                              </span>
+                              <span>
+                                <b>{l.title}</b>
+                                <small>{l.skill}</small>
+                              </span>
+                              <em>
+                                {l.activities
+                                  .map((a) => ACTIVITY_ICON[a.kind])
+                                  .join(" ")}
+                              </em>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+                );
+              })
+            : tab === "free"
             ? worldList.map((w) => {
                 const list = stages
                     .map((s, i) => ({ s, i }))
@@ -818,6 +1057,26 @@ export function RhythmGame({
                   );
                 })}
           <footer className="grown-ups">
+            <div className="parent-report">
+              <b>برای پدر و مادر</b>
+              <p>
+                {fa(passed.length)} درس از {fa(lessonList.length)} تمام شده ·
+                این هفته {fa(week.filter((d) => days.includes(d)).length)} روز تمرین
+              </p>
+              {songs.some((x) => knows(x.id, 2)) && (
+                <p>
+                  ماهور حالا این آهنگ‌ها را با ریتم می‌زند:{" "}
+                  {songs
+                    .filter((x) => knows(x.id, 2))
+                    .map((x) => x.title)
+                    .join("، ")}
+                </p>
+              )}
+              <small>
+                پیشنهاد: حدود ۱۰ دقیقه، ۳ تا ۵ روز در هفته. کنارش بنشینید و
+                آخر هر درس برایش دست بزنید؛ لازم نیست تمرین را کنترل کنید.
+              </small>
+            </div>
             <small>با چه پیانویی می‌زنی؟</small>
             <div className="input-choice" role="group" aria-label="روش نواختن">
               <button
@@ -859,6 +1118,66 @@ export function RhythmGame({
             )}
           </footer>
         </div>
+      ) : screen === "lesson" && lesson ? (
+        (() => {
+          const l = lessonAt(lesson.id),
+            u = units[l.unit],
+            a = l.activities[lesson.step],
+            after = lessonList[lessonList.indexOf(l) + 1];
+          return (
+            <section className="lesson">
+              <div className="lesson-head">
+                <small>
+                  {u.icon} {u.title}
+                </small>
+                <h1>{l.title}</h1>
+                <div className="lesson-steps" aria-label="قدم‌های درس">
+                  {l.activities.map((x, k) => (
+                    <i
+                      key={k}
+                      className={
+                        k < lesson.step ? "done" : k === lesson.step ? "now" : ""
+                      }
+                    >
+                      {ACTIVITY_ICON[x.kind]}
+                    </i>
+                  ))}
+                </div>
+              </div>
+              {a ? (
+                <div key={lesson.id + lesson.step}>{activityView(a)}</div>
+              ) : (
+                <div className="lesson-done">
+                  <BrickBuddy cheer />
+                  <h2>آفرین ماهور! 🎉</h2>
+                  <p className="skill">
+                    حالا بلدی: <b>{l.skill}</b>
+                  </p>
+                  <div className="game-buttons">
+                    {after && (
+                      <button
+                        className="brick-button big"
+                        onClick={() => openLesson(after.id)}
+                      >
+                        درس بعدی: {after.title} ▶
+                      </button>
+                    )}
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        stop();
+                        setLesson(null);
+                        setScreen("map");
+                      }}
+                    >
+                      دیدن نقشه
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          );
+        })()
       ) : screen === "intro" ? (
         <section className="stage-intro">
           <small>
@@ -1111,6 +1430,13 @@ export function RhythmGame({
               <Gauge size={18} />
               {percent(speed)}
             </span>
+            <button
+              className={"band-toggle " + (bandOn ? "on" : "")}
+              aria-pressed={bandOn}
+              onClick={() => setBand(!bandOn)}
+            >
+              🎸 گروه {bandOn ? "روشن" : "خاموش"}
+            </button>
             {input === "mic" && rm !== "listen" && (
               <span>
                 <Mic size={18} />
@@ -1121,7 +1447,8 @@ export function RhythmGame({
               className="brick-button small"
               onClick={() => {
                 stop();
-                setScreen("intro");
+                if (lesson) openLesson(lesson.id, lesson.step);
+                else setScreen("intro");
               }}
             >
               <Pause />
@@ -1310,6 +1637,21 @@ export function RhythmGame({
               نت‌ها را به‌موقع بزن.
             </p>
           )}
+          {lesson && (
+            <div className="game-buttons">
+              <button className="brick-button big" onClick={advance}>
+                ادامهٔ درس ▶
+              </button>
+              <button
+                className="brick-button outline"
+                onClick={() => void startMode(rm)}
+              >
+                <RotateCcw />
+                دوباره
+              </button>
+            </div>
+          )}
+          {!lesson && (
           <div className="mode-cards compact">
             {rm === "listen" && modeButton("learn", true)}
             {rm !== "listen" && (
@@ -1333,6 +1675,10 @@ export function RhythmGame({
                 </button>
               )}
           </div>
+          )}
+          {rm === "rhythm" && earned === 0 && speed > 0.5 && (
+            <p>سرعت را برایت یک پله کم کردم تا راحت‌تر بزنی 🐢</p>
+          )}
           {rm === "rhythm" && speedPicker}
           <button className="text-button" onClick={() => setScreen("map")}>
             دیدن نقشه

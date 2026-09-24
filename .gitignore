@@ -7,3 +7,7 @@ dist
 
 .playwright-cli/
 output/playwright/
+
+# research and business notes stay local (the repo is public)
+reports/
+research_notes/

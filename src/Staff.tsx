@@ -105,6 +105,7 @@ export function Staff({ steps, current }: { steps: Step[]; current: number }) {
             );
           })}
           <text
+            className="staff-name"
             x={76 + i * 64}
             y={height - 8}
             fontSize="11"

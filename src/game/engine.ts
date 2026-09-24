@@ -1,4 +1,4 @@
-import { songs, western, type Step } from "../curriculum.ts";
+import { songs, noteName, type Step } from "../curriculum.ts";
 /** The white keys from middle C up; drills are written against the first eight. */
 export const lane = [60, 62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79];
 const WHITE = [0, 2, 4, 5, 7, 9, 11];
@@ -8,7 +8,7 @@ export const isWhite = (m: number) => WHITE.includes(((m % 12) + 12) % 12);
  * and a black key borrows the number of the white below it plus a sharp.
  */
 export function keyLabel(m: number): string {
-  if (m < 60) return western(m);
+  if (m < 60) return isWhite(m) ? noteName(m) : noteName(m - 1) + "♯";
   if (!isWhite(m)) return keyLabel(m - 1) + "♯";
   let n = 0;
   for (let x = 60; x <= m; x++) if (isWhite(x)) n++;
@@ -75,6 +75,8 @@ type World = {
   song?: string;
   size?: number;
   full?: boolean;
+  /** Keep the song where it is written: black-key and left-hand pieces are not moved up an octave. */
+  low?: boolean;
 };
 const song = (id: string) => songs.find((s) => s.id === id)!;
 const worlds: World[] = [
@@ -230,6 +232,15 @@ const worlds: World[] = [
   { title: "پل لندن", hint: "یک بازی آوازی قدیمی", bpm: 64, song: "london", size: 7 },
   { title: "پارو بزن", hint: "نت‌های بلند و کوتاه روی آب", bpm: 58, song: "row", size: 6 },
   { title: "مزرعهٔ عمو مک‌دونالد", hint: "ای-آی-ای-آی-او!", bpm: 66, song: "farm", size: 6 },
+  { title: "کلاغ‌های سیاه", hint: "سه کلید سیاه", bpm: 62, song: "bk-crows", size: 6, low: true },
+  { title: "بره روی کلیدهای سیاه", hint: "ملودی آشنا روی سیاه‌ها", bpm: 64, song: "bk-mary", size: 6, low: true },
+  { title: "باران", hint: "قطره‌ها از بالا می‌افتند", bpm: 66, song: "bk-rain", size: 7, low: true },
+  { title: "خرس خواب‌آلود", hint: "کلیدهای سیاهِ پایین", bpm: 58, song: "bk-bear", size: 6, low: true },
+  { title: "مارش آجری", hint: "دو، رِ، می؛ قدم‌رو", bpm: 70, song: "march", size: 6, low: true },
+  { title: "زنگ مدرسه", hint: "دو-دو و راه", bpm: 66, song: "bell", size: 7, low: true },
+  { title: "قدم‌های خرس", hint: "دست چپ", bpm: 62, song: "bear-walk", size: 6, low: true },
+  { title: "پلکان", hint: "دو دست نوبتی", bpm: 70, song: "stairs", size: 5, low: true },
+  { title: "والس آجری", hint: "یک-دو-سه", bpm: 80, song: "waltz", size: 6, low: true },
   {
     title: "کنسرت بزرگ",
     hint: "آهنگ کامل، با سرعت واقعی",
@@ -255,6 +266,15 @@ const concert = [
   "london",
   "row",
   "farm",
+  "bk-crows",
+  "bk-mary",
+  "bk-rain",
+  "bk-bear",
+  "march",
+  "bell",
+  "bear-walk",
+  "stairs",
+  "waltz",
 ];
 export const stages: Stage[] = worlds.flatMap((w, wi) => {
   const head = { world: wi, worldTitle: w.title };
@@ -271,12 +291,14 @@ export const stages: Stage[] = worlds.flatMap((w, wi) => {
       ...head,
       id: `concert-${id}`,
       title: song(id).title,
-      steps: inRange(song(id).steps),
+      steps: worlds.some((w) => w.song === id && w.low)
+        ? song(id).steps
+        : inRange(song(id).steps),
       bpm: song(id).bpm,
       song: id,
     }));
   const s = song(w.song!),
-    all = inRange(s.steps),
+    all = w.low ? s.steps : inRange(s.steps),
     parts = cut(all, w.size!),
     mid = Math.ceil(all.length / 2);
   return [

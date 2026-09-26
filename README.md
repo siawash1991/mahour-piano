@@ -39,25 +39,25 @@ The optional “کیبورد واقعی · میکروفون” input retains phy
 
 91 automated tests cover DSP, timing, progression, touch release, simultaneous notes, chord exercises, permission separation and stored input provenance. Chromium tablet layout and pointer interactions were checked; physical tablet audio and touch behavior still need device verification.
 
-## Tablet above a small keyboard
+## Harmonica (C diatonic)
 
-Choose the prominent tablet card on the home page. With an adult, locate a C key with eight white keys available to its right, play it three times with releases, and confirm the displayed octave before placing 1–8 labels. The app speaks bundled Persian prompts, highlights one large number, and listens to the physical keyboard. Seven beginner items fit the numbered range; use the general studio for the later curriculum.
+A second instrument in the same brick world, switched with the «پیانو / سازدهنی» tabs. A standard 10-hole C harmonica in Richter tuning (hole 1 blow = middle C). Bricks fall into ten lanes, one per hole; blue means **blow** (فوت), orange means **draw** (مک). The harmonica at the bottom is drawn the way the child sees it: numbers up, hole 1 on the left, held in the left hand with the right hand cupped behind; the brick robot demonstrates the same grip.
 
-The tablet supports a base of C3, C4 or C5 and transposes its examples and expected pitches accordingly. This setting does not transpose the separate advanced studio. A held note is not intentionally counted repeatedly. Ambiguous sound is unscored. Test with your actual keyboard before relying on its assessment.
+Five breathing drills in holes 4–7 (the octave with a full C major scale), then every library song that fits the harmonica an octave up (16 songs, tab generated from the melody in `src/harmonica/harp.ts`). The same listen / wait / rhythm modes and stars as the piano.
 
-See [custom generated assets and exact prompts](docs/GENERATED_ASSETS.md).
+The microphone listens in a separate *pitched* mode: a harmonica holds one steady tone, so YIN ("which note is sounding?") reports each note once when it starts, and a breath dip between two equal notes counts as a new note. A pitch no single hole makes (usually two holes at once) gets the hint to pucker. Octaves count as wrong, since they are different holes. Touch mode offers blow/draw pads per hole.
+
+## Parent panel
+
+«بخش والدین» opens a panel in the same theme: practice days this week and the streak, minutes played, accuracy of the last ten runs, stars per instrument, progress bars (piano lessons, piano stages, harmonica stages), songs played in rhythm with two stars, stages whose latest try was under 70%, the last eight runs, and settings (JSON export, re-learn the piano, erase progress). «بازگشت به آموزش کودک» returns to the instrument the child was on.
 
 ## Features
 
 - Game stages across eighteen worlds, from two-note drills to whole pieces at real tempo; each song is learned as short parts, then halves, then the whole. The falling-note keyboard starts at middle C and widens to whatever a stage needs, including black keys.
-- Six studio levels, 22 guided exercises and twelve independently entered educational melody arrangements. Every library song also opens in the falling-note player.
 - Adding a melody is one entry in `src/curriculum.ts`: `song(id, level, title, subtitle, [midi...], [beats...], credit)`. Only public-domain or traditional music is included here; anything still in copyright is for you to add to your own copy.
 - Temporary key numbers → solfège names → treble/bass notation. Key numbers and finger numbers are explicitly distinguished.
-- Synthesized demonstrations, section practice, adjustable tempo, metronome and forgiving note-by-note progression.
-- Web Audio microphone input with YIN monophonic pitch detection. Silence gating, confidence threshold, stable frames and repeat-note gating.
-- Web MIDI note-on input; simultaneous groups supported within a 220 ms window. MIDI-only exercises cover two hands, triads and a simple accompanied Ode to Joy excerpt.
-- Separate note accuracy and onset timing scores. Onset scoring uses a four-beat count-in and a tolerance of max(180 ms, 30% of a beat).
-- Local progress, completed-versus-section distinction, input-source labeling, JSON report export, printable key labels and parent guide.
+- Web Audio microphone input: onset (harmonic-rise) detection for piano, YIN for harmonica; adaptive noise floor and sensitivity.
+- Local progress and JSON export from the parent panel.
 - Locally bundled Vazirmatn fonts and local synthesized audio.
 
 ## Run
@@ -86,7 +86,7 @@ Progress is local to one browser, capped at the latest 1,000 attempts. Clearing 
 
 ## Curriculum and research
 
-See [research and design decisions](docs/RESEARCH.md), [implementation plan and validation](docs/PLAN.md) and the in-app parent guide. All lesson instructions and arrangements are independently authored; proprietary method-book pages/audio are not included. The repertoire is traditional or based on old compositions; excerpt labels distinguish incomplete pieces. Generated sound is a simple additive synthesizer, not a sampled acoustic piano.
+See [research and design decisions](docs/RESEARCH.md), [implementation plan and validation](docs/PLAN.md) and the parent panel. All lesson instructions and arrangements are independently authored; proprietary method-book pages/audio are not included. The repertoire is traditional or based on old compositions; excerpt labels distinguish incomplete pieces. Generated sound is a simple additive synthesizer, not a sampled acoustic piano.
 
 ## Code map
 
@@ -94,7 +94,10 @@ See [research and design decisions](docs/RESEARCH.md), [implementation plan and 
 - `src/pitch.ts`: isolated testable YIN estimator.
 - `src/audio.ts`: synthesized demonstration and metronome.
 - `src/Staff.tsx`: functional staff renderer for the supported notation subset.
-- `src/main.tsx`: UI, practice lifecycle, microphone/MIDI input, timing and feedback.
+- `src/main.tsx`: switches between piano game, harmonica game and parent panel.
+- `src/game/`: piano falling-notes game; `src/lessons/`: the learning journey.
+- `src/harmonica/`: harmonica layout, stages and game.
+- `src/Parents.tsx`: parent panel.
 - `src/storage.ts`: local report persistence.
 
 MIT license for original application code and original instructional prose. The bundled font and dependencies retain their own licenses.

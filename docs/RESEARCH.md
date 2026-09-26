@@ -36,3 +36,9 @@ The shipped six stages introduce early intermediate building blocks. Continue re
 ## Notation subset
 
 The renderer supports sharp pitch spelling, separate treble/bass staves as needed, ledger lines, stemmed noteheads, half/whole notes, dotted values, eighth/sixteenth flags, and simultaneous note groups. This is an instructional pitch/duration display, not engraved publication sheet music: barlines, time signatures, rests, beaming, key signatures, fingering annotations and sustain notation are not fully implemented. Instructions explain the duration shown. Familiar melodies are simplified or explicitly labeled as excerpts.
+
+## Harmonica (added 2026-09-26)
+
+- [Richter-tuned harmonica (Wikipedia)](https://en.wikipedia.org/wiki/Richter-tuned_harmonica) and [Learn C harmonica notes](https://harmonicaforall.com/c-harmonica-notes/): a C harp starts on middle C; blow C E G C E G C E G C, draw D G B D F A B D F A. Holes 4–7 hold a complete C major scale, which is why the drills and songs live there. G4 exists twice (3 blow, 2 draw); tab uses 3 blow.
+- [Learn the harmonica: 15 steps](https://learntheharmonica.com/amp/how-to-play-harmonica-15-steps-beginner) and [Garofalo, diatonic harmonica studies](https://www.egreenway.com/Harmonica/HarmonicaStudies2.htm): hold it in the left hand, numbers on top, hole 1 (low) on the left; the right hand cups behind. Single notes by puckering; gentle breath rather than force (hard blowing bends or damages reeds).
+- Detection: a harmonica single note is a steady, nearly harmonic tone, so YIN is the right tool (unlike the piano, where ringing notes overlap). Range C4–A6 fits a 240–2000 Hz search. Bends and overblows are out of scope for a beginner and are not recognised as target notes. Not yet validated on a physical harmonica; synthetic reed-like tones are tested.

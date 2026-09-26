@@ -11,7 +11,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 /** Drives the hook's analyser by hand: `amplitude` is the level of a middle-C sine wave. */
-async function harness() {
+async function harness(pitched = false) {
   const track = { stop: vi.fn() },
     getUserMedia = vi.fn(async () => ({ getTracks: () => [track] }));
   Object.defineProperty(navigator, "mediaDevices", {
@@ -44,7 +44,7 @@ async function harness() {
   });
   vi.stubGlobal("cancelAnimationFrame", vi.fn());
   const received = vi.fn(),
-    { result } = renderHook(() => useMicrophone(received, () => true));
+    { result } = renderHook(() => useMicrophone(received, () => true, pitched));
   await act(async () => {
     await result.current.start();
   });
@@ -125,4 +125,15 @@ it("silence never produces a note however long it lasts", async () => {
   const { received, play } = await harness();
   await play(0, 60);
   expect(received).not.toHaveBeenCalled();
+});
+
+it("harmonica mode reports a held note once, and again after a breath", async () => {
+  const { received, play } = await harness(true);
+  await play(0, 31);
+  await play(0.02, 20); // one long blow
+  expect(received).toHaveBeenCalledTimes(1);
+  expect(received).toHaveBeenCalledWith(60);
+  await play(0.004, 1); // tongue "tu-tu": a dip, not silence
+  await play(0.02, 3);
+  expect(received).toHaveBeenCalledTimes(2);
 });

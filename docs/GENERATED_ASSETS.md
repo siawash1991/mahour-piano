@@ -1,11 +1,9 @@
-# Custom visual and voice assets
+# Custom visual assets
 
 Three separate assets were generated with the built-in `image_gen` tool, visually inspected, copied into the repository and resized to 512×512 with preserved alpha. No application keys or credentials were used.
 
 Files:
-- `public/icons/coach.png` — friendly star coach, used in tablet mode and app icon.
-- `public/icons/piano.png` — miniature teal piano, used for practice.
-- `public/icons/trophy.png` — musical trophy, used for achievements.
+- `public/icons/coach.png` — friendly star coach, the app icon. (The piano and trophy icons and the Persian voice clips belonged to the old studio/tablet screens and were removed with them.)
 
 ## Exact image prompt set
 
@@ -21,9 +19,3 @@ Piano:
 
 Trophy:
 > Subject: a golden musical achievement trophy, rounded cup with two curved handles and a raised five-point golden star emblem on the front, a small emerald teal and mint pedestal, and a tiny music-note relief below the star.
-
-## Persian audio
-
-12 synthesized MP3 prompts, generated at build/authoring time through `edge-tts`, voice `fa-IR-DilaraNeural`, rate `-12%`. Exact original Persian scripts are in `public/voice/transcripts.json`; reproducible authoring script: `scripts/generate_voice.py`. The tool is not a production app dependency. No learner audio or progress is sent to this service. Audio clips are served from the same app domain and are not recordings of a human narrator.
-
-The app uses HTMLAudio playback rather than relying on a device-installed Persian SpeechSynthesis voice. Failure is shown as an inline message; number and text remain usable. Recognition is gated during spoken prompts, with a 300 ms settling delay, so the guide is not treated as learner input. Pedal resonance and very noisy rooms can still produce recognition errors.

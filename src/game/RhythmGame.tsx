@@ -139,10 +139,13 @@ function Tower({ count }: { count: number }) {
 }
 export function RhythmGame({
   onExit,
+  onHarmonica,
   onSave,
   openStage,
 }: {
   onExit: () => void;
+  /** Switch the child over to the harmonica world. */
+  onHarmonica?: () => void;
   onSave: (a: Attempt) => void;
   /** A stage to jump straight into, from the song library. Ignores the usual unlock order. */
   openStage?: string;
@@ -856,6 +859,23 @@ export function RhythmGame({
       </header>
       {screen === "map" ? (
         <div className="world-map">
+          {onHarmonica && (
+            <div className="instrument-switch" role="tablist" aria-label="ساز">
+              <button role="tab" aria-selected className="on">
+                <Piano size={18} /> پیانو
+              </button>
+              <button
+                role="tab"
+                aria-selected={false}
+                onClick={() => {
+                  stop();
+                  onHarmonica();
+                }}
+              >
+                🎵 سازدهنی
+              </button>
+            </div>
+          )}
           <section className="hero-card">
             <BrickBuddy cheer={totalStars + passed.length > 0} />
             <div>
@@ -1057,26 +1077,6 @@ export function RhythmGame({
                   );
                 })}
           <footer className="grown-ups">
-            <div className="parent-report">
-              <b>برای پدر و مادر</b>
-              <p>
-                {fa(passed.length)} درس از {fa(lessonList.length)} تمام شده ·
-                این هفته {fa(week.filter((d) => days.includes(d)).length)} روز تمرین
-              </p>
-              {songs.some((x) => knows(x.id, 2)) && (
-                <p>
-                  ماهور حالا این آهنگ‌ها را با ریتم می‌زند:{" "}
-                  {songs
-                    .filter((x) => knows(x.id, 2))
-                    .map((x) => x.title)
-                    .join("، ")}
-                </p>
-              )}
-              <small>
-                پیشنهاد: حدود ۱۰ دقیقه، ۳ تا ۵ روز در هفته. کنارش بنشینید و
-                آخر هر درس برایش دست بزنید؛ لازم نیست تمرین را کنترل کنید.
-              </small>
-            </div>
             <small>با چه پیانویی می‌زنی؟</small>
             <div className="input-choice" role="group" aria-label="روش نواختن">
               <button

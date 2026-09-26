@@ -3,16 +3,18 @@ export function detectPitch(
   samples: Float32Array,
   sampleRate: number,
   minRms = 0.008,
+  maxHz = 1200,
+  minHz = 65,
 ): { midi: number; frequency: number; confidence: number; rms: number } | null {
   let rms = 0;
   for (const x of samples) rms += x * x;
   rms = Math.sqrt(rms / samples.length);
   if (rms < minRms) return null;
   const max = Math.min(
-      Math.floor(sampleRate / 65),
+      Math.floor(sampleRate / minHz),
       Math.floor(samples.length / 2) - 1,
     ),
-    min = Math.floor(sampleRate / 1200),
+    min = Math.floor(sampleRate / maxHz),
     size = samples.length - max;
   const d = new Float32Array(max + 1);
   let sum = 0;

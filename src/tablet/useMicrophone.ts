@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { audioContext } from "../audio";
 import {
+  detectPitch,
   harmonics,
   strike,
   strikeThreshold,
@@ -11,6 +12,11 @@ import { noiseFloor, signalThreshold, meter } from "./signal";
 export function useMicrophone(
   onNote: (midi: number) => void,
   enabled: () => boolean,
+  /**
+   * A wind instrument holds one steady pitch, so ask "which note is sounding?" (YIN) and report it
+   * once when it starts, instead of the piano question "whose harmonics just got louder?".
+   */
+  pitched = false,
 ) {
   const callback = useRef(onNote),
     allowed = useRef(enabled);
@@ -22,6 +28,7 @@ export function useMicrophone(
     node = useRef<MediaStreamAudioSourceNode | null>(null),
     sink = useRef<GainNode | null>(null),
     armed = useRef(0),
+    held = useRef<number | null>(null),
     params = useRef({ sensitivity: 2, deviceId: "", automatic: false });
   const [active, setActive] = useState(false),
     [level, setLevel] = useState(0),
@@ -125,7 +132,9 @@ export function useMicrophone(
       let last = 0,
         first: number | null = null,
         noise = 0.0001,
-        previous: Comb = quiet;
+        previous: Comb = quiet,
+        candidate = -1,
+        peak = 0;
       const read = (now: number) => {
         if (id !== generation.current) return;
         if (now - last >= 35) {
@@ -154,7 +163,26 @@ export function useMicrophone(
               // Silence is the reference a note rises out of, so the next frame above the floor
               // is measured against nothing rather than against a stale chord.
               previous = quiet;
+              held.current = null;
+              candidate = -1;
               setQuality("quiet");
+            } else if (pitched) {
+              // A harmonica sits between C4 and A6; a short look is enough and keeps YIN cheap.
+              const p = detectPitch(data.subarray(0, 2048), ctx.sampleRate, 0, 2000, 240);
+              voiced = !!p && p.confidence > 0.8;
+              setQuality(voiced ? "clear" : "unclear");
+              // A breath dip between two same notes ("tu-tu") counts as a new note.
+              if (rms < peak * 0.35) held.current = null;
+              peak = held.current === null ? rms : Math.max(peak, rms);
+              if (voiced && p) {
+                // Two frames in a row before believing a note, so a reed's first wobble is ignored.
+                if (p.midi === candidate && p.midi !== held.current && allowed.current()) {
+                  held.current = p.midi;
+                  peak = rms;
+                  callback.current(p.midi);
+                }
+                candidate = p.midi;
+              }
             } else {
               const current = harmonics(data, ctx.sampleRate);
               for (let i = 0; i < current.total.length; i++)
@@ -230,7 +258,10 @@ export function useMicrophone(
     start,
     stop,
     /** Drop the short lock-out after a strike, so the very next frame can report a note. */
-    rearm: () => (armed.current = 0),
+    rearm: () => {
+      armed.current = 0;
+      held.current = null;
+    },
     active,
     level,
     quality,
